@@ -1,6 +1,7 @@
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
@@ -27,6 +28,23 @@ export default function HomeScreen() {
         <AppText variant="label" style={styles.subheading}>
           Here&apos;s where things stand.
         </AppText>
+
+        {/* Sera entry point — temporary placement until Home widgets are
+            designed properly; the goal is just that she's reachable. */}
+        <Card tone="panel" style={styles.widget}>
+          <AppText variant="label" color={colors.primary}>
+            Sera · Behavioral Consultant
+          </AppText>
+          <AppText variant="body" style={styles.seraLine}>
+            The person behind the numbers is her whole job.
+          </AppText>
+          <Button
+            label="Talk to Sera"
+            variant="secondary"
+            onPress={() => router.push('/sera')}
+            testID="home-talk-to-sera"
+          />
+        </Card>
 
         {/* 1. Daily calorie ring (placeholder numbers). */}
         <Card style={styles.widget}>
@@ -104,6 +122,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   widget: {
+    marginBottom: spacing.md,
+  },
+  seraLine: {
+    marginTop: spacing.xs,
     marginBottom: spacing.md,
   },
   widgetValue: {

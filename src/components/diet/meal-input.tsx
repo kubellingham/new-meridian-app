@@ -9,13 +9,16 @@ type MealInputProps = {
   onSend: (text: string) => void;
   /** Disables sending while a reply is in flight or the service is offline. */
   disabled?: boolean;
+  /** Per-character placeholder; defaults to the meal-logging prompt. */
+  placeholder?: string;
 };
 
 /**
- * The meal-logging input bar: plain conversational text, the way you'd
- * tell a friend what you ate (brief §10).
+ * The conversational input bar: plain text, the way you'd talk to a
+ * person (brief §10). Defaults to the meal-logging placeholder; other
+ * character surfaces pass their own.
  */
-export function MealInput({ onSend, disabled }: MealInputProps) {
+export function MealInput({ onSend, disabled, placeholder }: MealInputProps) {
   const [text, setText] = useState('');
   const canSend = !disabled && text.trim().length > 0;
 
@@ -31,7 +34,7 @@ export function MealInput({ onSend, disabled }: MealInputProps) {
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Tell me what you ate…"
+        placeholder={placeholder ?? 'Tell me what you ate…'}
         placeholderTextColor={colors.muted}
         style={styles.input}
         multiline

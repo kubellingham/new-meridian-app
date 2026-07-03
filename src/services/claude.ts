@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { buildSystemPrompt, getCharacter, type CharacterId } from '@/src/content/characters';
 import type { ChatMessage } from '@/src/store/chat-store';
+import { useUserStore } from '@/src/store/user-store';
 
 /**
  * Claude API service — the live conversation layer.
@@ -40,10 +41,25 @@ function getClient(): Anthropic {
 
 /**
  * Builds the short user-context block appended after the character prompt
- * so replies are personal without any onboarding data model yet.
+ * so replies are personal without any onboarding data model yet. Includes
+ * the user's team roster so characters route to teammates by name
+ * ("Nneka should see this", not "your nutrition specialist").
+ *
+ * Team names are read from the user store here — not passed by callers —
+ * so every chat surface gets them without changing its call site.
  */
 function buildUserContext(userName: string): string {
-  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.`;
+  const { nsId, trainerId } = useUserStore.getState();
+  const teamLines: string[] = [];
+  if (nsId) {
+    teamLines.push(`Their nutrition specialist is ${getCharacter(nsId).name}.`);
+  }
+  if (trainerId) {
+    teamLines.push(`Their trainer is ${getCharacter(trainerId).name}.`);
+  }
+  teamLines.push('Kael (operations consultant) and Sera (behavioral consultant) are on every team.');
+
+  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.`;
 }
 
 /**

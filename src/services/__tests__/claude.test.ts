@@ -4,6 +4,7 @@
  */
 
 import { getCharacterReply, isClaudeConfigured } from '../claude';
+import { useUserStore } from '@/src/store/user-store';
 import type { ChatMessage } from '@/src/store/chat-store';
 
 // Capture create() calls made through the mocked SDK. (jest.mock calls are
@@ -15,6 +16,12 @@ jest.mock('@anthropic-ai/sdk', () => {
     messages = { create: mockCreate };
   };
 });
+
+// The user store persists to AsyncStorage, which needs its jest mock here.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories must require lazily
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
 
 /** Helper to build a chat message quickly. */
 function msg(role: 'user' | 'assistant', text: string, error?: boolean): ChatMessage {
@@ -49,6 +56,18 @@ describe('claude service', () => {
     expect(request.system).toContain('THE RULES EVERY MERIDIAN CHARACTER FOLLOWS');
     expect(request.system).toContain('You are Nneka');
     expect(request.system).toContain('Their name is Innocent');
+  });
+
+  it('includes the team roster in the context so characters route by name', async () => {
+    useUserStore.setState({ nsId: 'nneka', trainerId: 'cassidy' });
+
+    await getCharacterReply('sera', [msg('user', 'I had jollof rice today')], 'Innocent');
+
+    const request = mockCreate.mock.calls[0][0];
+    expect(request.system).toContain('You are Sera');
+    expect(request.system).toContain('Their nutrition specialist is Nneka.');
+    expect(request.system).toContain('Their trainer is Cassidy.');
+    expect(request.system).toContain('route to them by name');
   });
 
   it('drops error bubbles and leading assistant messages from history', async () => {
