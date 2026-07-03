@@ -1,0 +1,74 @@
+/**
+ * Verifies the request shape the Claude service builds — model, system
+ * prompt assembly, and history filtering — without hitting the network.
+ */
+
+import { getCharacterReply, isClaudeConfigured } from '../claude';
+import type { ChatMessage } from '@/src/store/chat-store';
+
+// Capture create() calls made through the mocked SDK. (jest.mock calls are
+// hoisted above imports; the mock-prefixed variable is allowed inside.)
+const mockCreate = jest.fn();
+
+jest.mock('@anthropic-ai/sdk', () => {
+  return class MockAnthropic {
+    messages = { create: mockCreate };
+  };
+});
+
+/** Helper to build a chat message quickly. */
+function msg(role: 'user' | 'assistant', text: string, error?: boolean): ChatMessage {
+  return { id: text, role, text, at: 0, error };
+}
+
+describe('claude service', () => {
+  beforeEach(() => {
+    mockCreate.mockClear();
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'Ah, that sounds like a solid plate.' }],
+    });
+    process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY = 'test-key';
+  });
+
+  it('reports configured only when the env key is present', () => {
+    expect(isClaudeConfigured()).toBe(true);
+    delete process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+    expect(isClaudeConfigured()).toBe(false);
+  });
+
+  it('sends the locked model with the assembled character system prompt', async () => {
+    const reply = await getCharacterReply('nneka', [msg('user', 'I had jollof rice')], 'Innocent');
+
+    expect(reply).toBe('Ah, that sounds like a solid plate.');
+    const request = mockCreate.mock.calls[0][0];
+    expect(request.model).toBe('claude-sonnet-4-6');
+    expect(request.max_tokens).toBe(1024);
+    // No sampling params — steering is prompt-only.
+    expect(request.temperature).toBeUndefined();
+    // Shared rules first, then character voice, then user context.
+    expect(request.system).toContain('THE RULES EVERY MERIDIAN CHARACTER FOLLOWS');
+    expect(request.system).toContain('You are Nneka');
+    expect(request.system).toContain('Their name is Innocent');
+  });
+
+  it('drops error bubbles and leading assistant messages from history', async () => {
+    await getCharacterReply(
+      'nneka',
+      [
+        msg('assistant', 'scripted greeting'), // seeded greeting — before first user turn
+        msg('user', 'I had eggs'),
+        msg('assistant', 'network failed', true), // error bubble — UI state only
+        msg('assistant', 'Good start.'),
+        msg('user', 'and toast'),
+      ],
+      'Innocent',
+    );
+
+    const request = mockCreate.mock.calls[0][0];
+    expect(request.messages).toEqual([
+      { role: 'user', content: 'I had eggs' },
+      { role: 'assistant', content: 'Good start.' },
+      { role: 'user', content: 'and toast' },
+    ]);
+  });
+});
