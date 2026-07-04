@@ -4,21 +4,20 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
 
-type MealInputProps = {
+type ChatInputProps = {
   /** Called with the trimmed text when the user sends. */
   onSend: (text: string) => void;
   /** Disables sending while a reply is in flight or the service is offline. */
   disabled?: boolean;
-  /** Per-character placeholder; defaults to the meal-logging prompt. */
-  placeholder?: string;
+  /** Per-character placeholder, e.g. "Tell me what you ate…". */
+  placeholder: string;
 };
 
 /**
- * The conversational input bar: plain text, the way you'd talk to a
- * person (brief §10). Defaults to the meal-logging placeholder; other
- * character surfaces pass their own.
+ * The conversational input bar shared by every character surface: plain
+ * text, the way you'd talk to a person (brief §10).
  */
-export function MealInput({ onSend, disabled, placeholder }: MealInputProps) {
+export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
   const [text, setText] = useState('');
   const canSend = !disabled && text.trim().length > 0;
 
@@ -34,12 +33,12 @@ export function MealInput({ onSend, disabled, placeholder }: MealInputProps) {
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder={placeholder ?? 'Tell me what you ate…'}
+        placeholder={placeholder}
         placeholderTextColor={colors.muted}
         style={styles.input}
         multiline
         editable={!disabled}
-        testID="meal-input"
+        testID="chat-input"
       />
       <Pressable
         onPress={handleSend}
@@ -47,7 +46,7 @@ export function MealInput({ onSend, disabled, placeholder }: MealInputProps) {
         style={[styles.send, !canSend && styles.sendDisabled]}
         accessibilityRole="button"
         accessibilityLabel="Send"
-        testID="meal-send"
+        testID="chat-send"
       >
         <Ionicons name="arrow-up" size={20} color={canSend ? colors.base : colors.muted} />
       </Pressable>
