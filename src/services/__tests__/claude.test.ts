@@ -68,6 +68,8 @@ describe('claude service', () => {
     expect(request.system).toContain('Their nutrition specialist is Nneka.');
     expect(request.system).toContain('Their trainer is Cassidy.');
     expect(request.system).toContain('route to them by name');
+    // Grounding: characters must not invent device data or programmes.
+    expect(request.system).toContain('never invent numbers');
   });
 
   it('drops error bubbles and leading assistant messages from history', async () => {

@@ -51,6 +51,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="setup" />
         <Stack.Screen name="sera" />
+        <Stack.Screen name="kael" />
       </Stack>
       <StatusBar style="light" />
     </>

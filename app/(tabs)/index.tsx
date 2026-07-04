@@ -29,21 +29,31 @@ export default function HomeScreen() {
           Here&apos;s where things stand.
         </AppText>
 
-        {/* Sera entry point — temporary placement until Home widgets are
-            designed properly; the goal is just that she's reachable. */}
+        {/* Consultant entry points — temporary placement until Home widgets
+            are designed properly; the goal is that both are reachable. */}
         <Card tone="panel" style={styles.widget}>
           <AppText variant="label" color={colors.primary}>
-            Sera · Behavioral Consultant
+            Your consultants
           </AppText>
           <AppText variant="body" style={styles.seraLine}>
-            The person behind the numbers is her whole job.
+            Kael runs the operational side. Sera looks after the person doing it.
           </AppText>
-          <Button
-            label="Talk to Sera"
-            variant="secondary"
-            onPress={() => router.push('/sera')}
-            testID="home-talk-to-sera"
-          />
+          <View style={styles.consultantButtons}>
+            <Button
+              label="Talk to Kael"
+              variant="secondary"
+              onPress={() => router.push('/kael')}
+              style={styles.consultantButton}
+              testID="home-talk-to-kael"
+            />
+            <Button
+              label="Talk to Sera"
+              variant="secondary"
+              onPress={() => router.push('/sera')}
+              style={styles.consultantButton}
+              testID="home-talk-to-sera"
+            />
+          </View>
         </Card>
 
         {/* 1. Daily calorie ring (placeholder numbers). */}
@@ -127,6 +137,13 @@ const styles = StyleSheet.create({
   seraLine: {
     marginTop: spacing.xs,
     marginBottom: spacing.md,
+  },
+  consultantButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  consultantButton: {
+    flex: 1,
   },
   widgetValue: {
     marginTop: spacing.xs,
