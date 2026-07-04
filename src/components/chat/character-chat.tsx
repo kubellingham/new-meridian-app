@@ -20,7 +20,9 @@ import {
   getCharacterReply,
   isClaudeConfigured,
 } from '@/src/services/claude';
+import { speak, stopSpeaking, voiceConfigured } from '@/src/services/voice';
 import { makeMessageId, useChatStore, type ChatMessage } from '@/src/store/chat-store';
+import { useSettingsStore } from '@/src/store/settings-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
 
@@ -55,12 +57,21 @@ export function CharacterChat({
   const append = useChatStore((s) => s.append);
   const remove = useChatStore((s) => s.remove);
 
+  const voiceEnabled = useSettingsStore((s) => s.voiceEnabled);
+  const toggleVoice = useSettingsStore((s) => s.toggleVoice);
+
   const [waiting, setWaiting] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const character = getCharacter(characterId);
   const thread = threads[characterId] ?? [];
   const configured = isClaudeConfigured();
+  // Voice only surfaces when a key is set; the mute toggle is hidden otherwise.
+  const voiceAvailable = voiceConfigured();
+
+  // Stop any playback when leaving the screen so a reply doesn't keep
+  // talking after the user navigates away.
+  useEffect(() => stopSpeaking, []);
 
   // Seed the thread with the scripted greeting — static content, no API
   // call, per the "predesigned scripts wherever possible" principle.
@@ -89,6 +100,8 @@ export function CharacterChat({
     };
     append(characterId, userMessage);
     setWaiting(true);
+    // A new message supersedes any reply still being spoken.
+    stopSpeaking();
 
     try {
       // Send the persisted history plus the new message; the store update
@@ -100,6 +113,11 @@ export function CharacterChat({
         text: reply,
         at: Date.now(),
       });
+      // Voice the reply when enabled and configured. Fire-and-forget — the
+      // voice layer swallows its own errors so text is never blocked.
+      if (voiceEnabled && voiceAvailable) {
+        void speak(characterId, reply);
+      }
     } catch (error) {
       console.error(`${character.name} conversation request failed:`, error);
       append(characterId, {
@@ -138,10 +156,31 @@ export function CharacterChat({
               <Ionicons name="chevron-back" size={24} color={colors.text} />
             </Pressable>
           )}
-          <View>
+          <View style={styles.headerText}>
             <AppText variant="subtitle">{character.name}</AppText>
             <AppText variant="caption">{subtitle}</AppText>
           </View>
+          {/* Mute toggle — only when a voice key is configured. */}
+          {voiceAvailable && (
+            <Pressable
+              onPress={() => {
+                if (voiceEnabled) {
+                  stopSpeaking(); // silence immediately on mute
+                }
+                toggleVoice();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={voiceEnabled ? 'Mute voice' : 'Unmute voice'}
+              style={styles.voiceToggle}
+              testID="chat-voice-toggle"
+            >
+              <Ionicons
+                name={voiceEnabled ? 'volume-high' : 'volume-mute'}
+                size={22}
+                color={voiceEnabled ? colors.primary : colors.muted}
+              />
+            </Pressable>
+          )}
         </View>
 
         {/* Offline notice when no API key is configured. */}
@@ -203,6 +242,12 @@ const styles = StyleSheet.create({
   back: {
     padding: spacing.xs,
     marginLeft: -spacing.xs,
+  },
+  headerText: {
+    flex: 1,
+  },
+  voiceToggle: {
+    padding: spacing.xs,
   },
   offline: {
     margin: spacing.md,

@@ -23,6 +23,14 @@ Built so far:
 - First live AI surface: conversational meal logging in the Diet tab —
   tell your NS what you ate in plain text, get an in-character reply with
   macros in flowing sentences.
+- Consultant chat surfaces: Kael (operations) and Sera (behavioral),
+  reachable from Home, on a shared `CharacterChat` component.
+- Shared team context (`src/services/team-context.ts`): characters see
+  what the user told their teammates, so the team behaves as one.
+- Voice (ElevenLabs): character replies are spoken aloud when a voice key
+  is set, with a per-conversation mute toggle. Stock voices for now,
+  mapped per character in `src/services/voice/voices.ts` — swap the IDs
+  there for tuned/cloned voices later.
 - Temporary setup screen (name + NS pick). Replaced by the scripted
   onboarding in a later session.
 
@@ -30,18 +38,23 @@ Built so far:
 
 ```bash
 npm install
-cp .env.example .env   # then paste your Anthropic API key
+cp .env.example .env   # then paste your API keys (see below)
 npx expo start         # scan the QR code with Expo Go on Android
 ```
 
-Without a key the app runs fine; the nutrition specialist just shows as
-offline in the Diet tab.
+`.env` takes two keys, both optional:
 
-### API key — MVP only
+- `EXPO_PUBLIC_ANTHROPIC_API_KEY` — the conversations. Without it, every
+  character shows as offline.
+- `EXPO_PUBLIC_ELEVENLABS_API_KEY` — spoken replies. Without it, the app is
+  text-only and the mute toggle is hidden.
 
-`EXPO_PUBLIC_ANTHROPIC_API_KEY` ships inside the client bundle. That is an
-explicit MVP decision for **personal testing only** (brief §12). A backend
-proxy must replace it before any public build. Never commit `.env`.
+### API keys — MVP only
+
+Both keys ship inside the client bundle. That is an explicit MVP decision
+for **personal testing only** (brief §12). A backend proxy must replace
+them before any public build — especially the ElevenLabs key, which bills
+by usage and can be drained if leaked. Never commit `.env`.
 
 ## Tests
 
