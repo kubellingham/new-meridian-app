@@ -1,8 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { buildSystemPrompt, getCharacter, type CharacterId } from '@/src/content/characters';
-import type { ChatMessage } from '@/src/store/chat-store';
+import { useChatStore, type ChatMessage } from '@/src/store/chat-store';
 import { useUserStore } from '@/src/store/user-store';
+import { buildTeamContext } from './team-context';
 
 /**
  * Claude API service — the live conversation layer.
@@ -84,10 +85,20 @@ export async function getCharacterReply(
   const firstUserIndex = messages.findIndex((m) => m.role === 'user');
   const apiMessages = firstUserIndex >= 0 ? messages.slice(firstUserIndex) : [];
 
+  // Assemble the system prompt: character voice, then who the user is,
+  // then the shared team memory (what they've told everyone else). The
+  // team block reads all threads from the store here so no chat surface
+  // has to pass it in. It's omitted entirely when there's nothing shared.
+  const teamContext = buildTeamContext(characterId, useChatStore.getState().threads, userName);
+  const systemSections = [buildSystemPrompt(character), buildUserContext(userName)];
+  if (teamContext) {
+    systemSections.push(teamContext);
+  }
+
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system: `${buildSystemPrompt(character)}\n\n---\n\n${buildUserContext(userName)}`,
+    system: systemSections.join('\n\n---\n\n'),
     messages: apiMessages,
   });
 

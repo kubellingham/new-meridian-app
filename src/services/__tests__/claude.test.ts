@@ -5,7 +5,7 @@
 
 import { getCharacterReply, isClaudeConfigured } from '../claude';
 import { useUserStore } from '@/src/store/user-store';
-import type { ChatMessage } from '@/src/store/chat-store';
+import { useChatStore, type ChatMessage } from '@/src/store/chat-store';
 
 // Capture create() calls made through the mocked SDK. (jest.mock calls are
 // hoisted above imports; the mock-prefixed variable is allowed inside.)
@@ -35,6 +35,8 @@ describe('claude service', () => {
       content: [{ type: 'text', text: 'Ah, that sounds like a solid plate.' }],
     });
     process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY = 'test-key';
+    // Reset cross-thread state so tests don't leak team context into each other.
+    useChatStore.setState({ threads: {} });
   });
 
   it('reports configured only when the env key is present', () => {
@@ -70,6 +72,28 @@ describe('claude service', () => {
     expect(request.system).toContain('route to them by name');
     // Grounding: characters must not invent device data or programmes.
     expect(request.system).toContain('never invent numbers');
+  });
+
+  it('injects the shared team context so a character knows what teammates were told', async () => {
+    // The user told Kael something; now they open Sera. She should see it.
+    useChatStore.setState({
+      threads: {
+        kael: [msg('user', 'I drink daily plus cigars'), msg('assistant', 'Noted.')],
+      },
+    });
+
+    await getCharacterReply('sera', [msg('user', "Let's talk")], 'Innocent');
+
+    const request = mockCreate.mock.calls[0][0];
+    expect(request.system).toContain('HAS ALREADY SHARED WITH THE TEAM');
+    expect(request.system).toContain('With Kael');
+    expect(request.system).toContain('I drink daily plus cigars');
+  });
+
+  it('omits the team context section when nothing has been shared yet', async () => {
+    await getCharacterReply('sera', [msg('user', 'first message')], 'Innocent');
+    const request = mockCreate.mock.calls[0][0];
+    expect(request.system).not.toContain('HAS ALREADY SHARED WITH THE TEAM');
   });
 
   it('drops error bubbles and leading assistant messages from history', async () => {
