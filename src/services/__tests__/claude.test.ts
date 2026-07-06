@@ -3,7 +3,7 @@
  * prompt assembly, and history filtering — without hitting the network.
  */
 
-import { getCharacterReply, isClaudeConfigured } from '../claude';
+import { getCharacterReply, getReturnGreeting, isClaudeConfigured } from '../claude';
 import { useUserStore } from '@/src/store/user-store';
 import { useChatStore, type ChatMessage } from '@/src/store/chat-store';
 
@@ -94,6 +94,24 @@ describe('claude service', () => {
     await getCharacterReply('sera', [msg('user', 'first message')], 'Innocent');
     const request = mockCreate.mock.calls[0][0];
     expect(request.system).not.toContain('HAS ALREADY SHARED WITH THE TEAM');
+  });
+
+  it('appends an ephemeral greeting directive for a return greeting, without persisting it', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'Good to see you back.' }],
+    });
+
+    const history = [msg('user', 'I had jollof yesterday'), msg('assistant', 'Nice one.')];
+    const greeting = await getReturnGreeting('nneka', history, 'Innocent');
+
+    expect(greeting).toBe('Good to see you back.');
+    const request = mockCreate.mock.calls[0][0];
+    // Full prior history is present…
+    expect(request.messages[0]).toEqual({ role: 'user', content: 'I had jollof yesterday' });
+    // …and the directive is the final, trailing user turn.
+    const last = request.messages[request.messages.length - 1];
+    expect(last.role).toBe('user');
+    expect(last.content).toContain('just re-entered your space');
   });
 
   it('drops error bubbles and leading assistant messages from history', async () => {

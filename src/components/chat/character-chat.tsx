@@ -3,8 +3,10 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -18,6 +20,7 @@ import { getCharacter, type CharacterId } from '@/src/content/characters';
 import {
   describeClaudeError,
   getCharacterReply,
+  getReturnGreeting,
   isClaudeConfigured,
 } from '@/src/services/claude';
 import { speak, stopSpeaking, voiceConfigured } from '@/src/services/voice';
@@ -31,24 +34,59 @@ type CharacterChatProps = {
   characterId: CharacterId;
   /** Line under the name, e.g. "Lagos, Nigeria · Nutrition Specialist". */
   subtitle: string;
-  /** Scripted greeting that seeds an empty thread — static, no API call. */
+  /** Scripted first-meeting greeting — used the very first visit, no API. */
   greeting: string;
+  /** Short in-voice opener for a quick return (recent visit), no API. */
+  returnGreeting: string;
   /** Input placeholder in the character's register. */
   placeholder: string;
   /** Show a back control — for surfaces pushed over the tabs. */
   showBack?: boolean;
 };
 
+/** How recently the user must have visited to skip the API return greeting. */
+const RECENT_VISIT_MS = 3 * 60 * 60 * 1000; // 3 hours
+/** Most present-moment messages shown at once before older ones fall away. */
+const MAX_VISIBLE = 5;
+/** Opacity by recency — index 0 is the newest (current) message. */
+const OPACITY_RAMP = [1, 0.5, 0.28, 0.16, 0.09];
+
+/** Builds an assistant message for the given text. */
+function assistantMessage(text: string): ChatMessage {
+  return { id: makeMessageId(), role: 'assistant', text, at: Date.now() };
+}
+
 /**
- * The one conversation surface every Meridian character uses. Holds the
- * persisted thread, scripted greeting seed, live Claude replies, typing
- * indicator, and the offline/error states. Screens are thin wrappers that
- * pass character identity and surface copy.
+ * Fades a message to its target opacity — in on mount, and down as newer
+ * messages push it further back. Core RN Animated for cross-platform
+ * reliability; deliberately no motion beyond the fade (function over form).
+ */
+function FadingMessage({ target, children }: { target: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: target,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+  }, [target, opacity]);
+  return <Animated.View style={{ opacity }}>{children}</Animated.View>;
+}
+
+/**
+ * The one conversation surface every Meridian character uses — the
+ * present-moment model (locked design). The user sees the current exchange
+ * prominently, with the last few messages of THIS visit fading above; no
+ * long scrollable thread. Each visit opens fresh with the specialist
+ * speaking. But the full history persists and is sent on every API call,
+ * so the specialist genuinely remembers — the gap between what's shown
+ * (a fresh visit) and what's known (everything) is the whole point.
  */
 export function CharacterChat({
   characterId,
   subtitle,
   greeting,
+  returnGreeting,
   placeholder,
   showBack,
 }: CharacterChatProps) {
@@ -56,41 +94,72 @@ export function CharacterChat({
   const threads = useChatStore((s) => s.threads);
   const append = useChatStore((s) => s.append);
   const remove = useChatStore((s) => s.remove);
-
+  const setLastVisit = useChatStore((s) => s.setLastVisit);
+  const hasHydrated = useChatStore((s) => s.hasHydrated);
   const voiceEnabled = useSettingsStore((s) => s.voiceEnabled);
   const toggleVoice = useSettingsStore((s) => s.toggleVoice);
 
   const [waiting, setWaiting] = useState(false);
-  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const [greetingLoading, setGreetingLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Index in the full thread where this visit began; messages from here on
+  // are the visible present-moment view. Null until the visit initializes.
+  const [visitStart, setVisitStart] = useState<number | null>(null);
+  const initialized = useRef(false);
 
   const character = getCharacter(characterId);
   const thread = threads[characterId] ?? [];
   const configured = isClaudeConfigured();
-  // Voice only surfaces when a key is set; the mute toggle is hidden otherwise.
   const voiceAvailable = voiceConfigured();
 
-  // Stop any playback when leaving the screen so a reply doesn't keep
-  // talking after the user navigates away.
+  // Stop playback when leaving the screen.
   useEffect(() => stopSpeaking, []);
 
-  // Seed the thread with the scripted greeting — static content, no API
-  // call, per the "predesigned scripts wherever possible" principle.
+  // Fresh-visit greeting: runs once, after the store has rehydrated so a
+  // returning user's history (and last-visit time) is actually available.
   useEffect(() => {
-    if (thread.length === 0) {
-      append(characterId, {
-        id: makeMessageId(),
-        role: 'assistant',
-        text: greeting,
-        at: Date.now(),
-      });
+    if (!hasHydrated || initialized.current) return;
+    initialized.current = true;
+
+    const state = useChatStore.getState();
+    const existing = state.threads[characterId] ?? [];
+    const boundary = existing.length;
+    const last = state.lastVisitAt[characterId];
+    const now = Date.now();
+
+    setVisitStart(boundary);
+    setLastVisit(characterId, now);
+
+    if (boundary === 0) {
+      // First-ever visit — scripted first-meeting greeting, no API.
+      append(characterId, assistantMessage(greeting));
+      return;
     }
-    // Seeding depends only on the empty-thread state for this character.
+
+    const recentlyHere = last !== undefined && now - last < RECENT_VISIT_MS;
+    if (recentlyHere || !configured) {
+      // Quick return (or no API available) — short static opener.
+      append(characterId, assistantMessage(returnGreeting));
+      return;
+    }
+
+    // Returning after a gap — a contextual greeting that can reference
+    // prior conversations, generated from the full history.
+    setGreetingLoading(true);
+    getReturnGreeting(characterId, existing, name)
+      .then((text) => append(characterId, assistantMessage(text)))
+      .catch((error) => {
+        console.warn('Return greeting failed, using static opener:', error);
+        append(characterId, assistantMessage(returnGreeting));
+      })
+      .finally(() => setGreetingLoading(false));
+    // Intentionally runs on hydration only; other deps are read via getState.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [characterId, thread.length]);
+  }, [hasHydrated]);
 
   /** Sends a message and appends the character's live reply (or an error). */
   async function handleSend(text: string) {
-    if (waiting) return;
+    if (waiting || greetingLoading) return;
 
     const userMessage: ChatMessage = {
       id: makeMessageId(),
@@ -100,21 +169,14 @@ export function CharacterChat({
     };
     append(characterId, userMessage);
     setWaiting(true);
-    // A new message supersedes any reply still being spoken.
-    stopSpeaking();
+    stopSpeaking(); // a new message supersedes any reply still being spoken
 
     try {
-      // Send the persisted history plus the new message; the store update
-      // above may not be reflected in `thread` yet within this closure.
-      const reply = await getCharacterReply(characterId, [...thread, userMessage], name);
-      append(characterId, {
-        id: makeMessageId(),
-        role: 'assistant',
-        text: reply,
-        at: Date.now(),
-      });
-      // Voice the reply when enabled and configured. Fire-and-forget — the
-      // voice layer swallows its own errors so text is never blocked.
+      // Full persisted history goes to the API — the specialist's memory —
+      // even though the UI only shows this visit.
+      const fullHistory = [...(useChatStore.getState().threads[characterId] ?? [])];
+      const reply = await getCharacterReply(characterId, fullHistory, name);
+      append(characterId, assistantMessage(reply));
       if (voiceEnabled && voiceAvailable) {
         void speak(characterId, reply);
       }
@@ -132,10 +194,18 @@ export function CharacterChat({
     }
   }
 
-  /** Clears error bubbles so the thread stays clean after a retry. */
+  /** Clears error bubbles so the view stays clean after a retry. */
   function dismissErrors() {
     thread.filter((m) => m.error).forEach((m) => remove(characterId, m.id));
   }
+
+  // The present-moment slice: this visit's messages, capped, newest last.
+  const visitMessages = visitStart == null ? [] : thread.slice(visitStart);
+  const visible = visitMessages.slice(-MAX_VISIBLE);
+  const busy = waiting || greetingLoading;
+
+  // Full history for the overlay — every persisted turn, errors omitted.
+  const fullHistory = thread.filter((m) => !m.error);
 
   return (
     <Screen noPadding>
@@ -150,7 +220,7 @@ export function CharacterChat({
               onPress={() => router.back()}
               accessibilityRole="button"
               accessibilityLabel="Back"
-              style={styles.back}
+              style={styles.iconButton}
               testID="chat-back"
             >
               <Ionicons name="chevron-back" size={24} color={colors.text} />
@@ -160,18 +230,28 @@ export function CharacterChat({
             <AppText variant="subtitle">{character.name}</AppText>
             <AppText variant="caption">{subtitle}</AppText>
           </View>
+
+          {/* Discrete history access — subtle, not a prominent button. */}
+          <Pressable
+            onPress={() => setHistoryOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Conversation history"
+            style={styles.iconButton}
+            testID="chat-history"
+          >
+            <Ionicons name="time-outline" size={22} color={colors.muted} />
+          </Pressable>
+
           {/* Mute toggle — only when a voice key is configured. */}
           {voiceAvailable && (
             <Pressable
               onPress={() => {
-                if (voiceEnabled) {
-                  stopSpeaking(); // silence immediately on mute
-                }
+                if (voiceEnabled) stopSpeaking();
                 toggleVoice();
               }}
               accessibilityRole="button"
               accessibilityLabel={voiceEnabled ? 'Mute voice' : 'Unmute voice'}
-              style={styles.voiceToggle}
+              style={styles.iconButton}
               testID="chat-voice-toggle"
             >
               <Ionicons
@@ -196,20 +276,22 @@ export function CharacterChat({
           </Card>
         )}
 
-        <FlatList
-          ref={listRef}
-          data={thread}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
-            <MessageBubble message={item} speakerName={character.name} />
-          )}
-          contentContainerStyle={styles.thread}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          onTouchStart={dismissErrors}
-        />
+        {/* Present-moment view: current message at the bottom (full opacity),
+            this visit's prior messages fading upward. No scrolling. */}
+        <View style={styles.presentView} onTouchStart={dismissErrors}>
+          {visible.map((message, i) => {
+            const fromEnd = visible.length - 1 - i;
+            const target = OPACITY_RAMP[Math.min(fromEnd, OPACITY_RAMP.length - 1)];
+            return (
+              <FadingMessage key={message.id} target={target}>
+                <MessageBubble message={message} speakerName={character.name} />
+              </FadingMessage>
+            );
+          })}
+        </View>
 
-        {/* Typing indicator while the character "thinks". */}
-        {waiting && (
+        {/* Typing indicator while the character composes a greeting or reply. */}
+        {busy && (
           <View style={styles.typing}>
             <ActivityIndicator size="small" color={colors.muted} />
             <AppText variant="caption">{character.name} is typing…</AppText>
@@ -219,11 +301,51 @@ export function CharacterChat({
         <View style={styles.inputWrap}>
           <ChatInput
             onSend={handleSend}
-            disabled={waiting || !configured}
+            disabled={busy || !configured}
             placeholder={placeholder}
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Discrete full-history overlay — available, not pushed. */}
+      <Modal
+        visible={historyOpen}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setHistoryOpen(false)}
+      >
+        <Screen noPadding>
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <AppText variant="subtitle">Full conversation</AppText>
+              <AppText variant="caption">with {character.name}</AppText>
+            </View>
+            <Pressable
+              onPress={() => setHistoryOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close history"
+              style={styles.iconButton}
+              testID="chat-history-close"
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          {fullHistory.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <AppText variant="caption">No conversation yet.</AppText>
+            </View>
+          ) : (
+            <FlatList
+              data={fullHistory}
+              keyExtractor={(m) => m.id}
+              renderItem={({ item }) => (
+                <MessageBubble message={item} speakerName={character.name} />
+              )}
+              contentContainerStyle={styles.historyList}
+            />
+          )}
+        </Screen>
+      </Modal>
     </Screen>
   );
 }
@@ -233,20 +355,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  back: {
-    padding: spacing.xs,
-    marginLeft: -spacing.xs,
-  },
   headerText: {
     flex: 1,
   },
-  voiceToggle: {
+  iconButton: {
     padding: spacing.xs,
   },
   offline: {
@@ -256,9 +374,10 @@ const styles = StyleSheet.create({
   offlineText: {
     marginTop: spacing.xs,
   },
-  thread: {
+  presentView: {
+    flex: 1,
+    justifyContent: 'flex-end',
     padding: spacing.md,
-    paddingBottom: spacing.sm,
   },
   typing: {
     flexDirection: 'row',
@@ -270,5 +389,13 @@ const styles = StyleSheet.create({
   inputWrap: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
+  },
+  historyList: {
+    padding: spacing.md,
+  },
+  emptyHistory: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

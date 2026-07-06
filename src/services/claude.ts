@@ -63,42 +63,48 @@ function buildUserContext(userName: string): string {
   return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.\n\nWHAT EXISTS SO FAR: No device data (sleep, steps, heart rate) is connected yet, and no training programme has been built yet. If asked about those, say so plainly — never invent numbers or schedule details that don't exist.`;
 }
 
-/**
- * Sends the conversation to Claude and returns the character's reply text.
- *
- * @param characterId which specialist is speaking
- * @param history the full thread so far (persisted messages, oldest first)
- * @param userName how the character should address the user
- */
-export async function getCharacterReply(
-  characterId: CharacterId,
-  history: ChatMessage[],
-  userName: string,
-): Promise<string> {
-  const character = getCharacter(characterId);
+/** A message in the shape the API expects. */
+type ApiMessage = { role: 'user' | 'assistant'; content: string };
 
-  // Error bubbles are UI state, not conversation — keep them out of the
-  // prompt. The API also requires the first message to be from the user.
-  const messages = history
+/**
+ * Converts persisted thread messages to API messages: drop error bubbles
+ * (UI state, not conversation) and start at the first user turn (the API
+ * requires the first message to be from the user).
+ */
+function toApiMessages(history: ChatMessage[]): ApiMessage[] {
+  const messages: ApiMessage[] = history
     .filter((m) => !m.error)
     .map((m) => ({ role: m.role, content: m.text }));
   const firstUserIndex = messages.findIndex((m) => m.role === 'user');
-  const apiMessages = firstUserIndex >= 0 ? messages.slice(firstUserIndex) : [];
+  return firstUserIndex >= 0 ? messages.slice(firstUserIndex) : [];
+}
 
-  // Assemble the system prompt: character voice, then who the user is,
-  // then the shared team memory (what they've told everyone else). The
-  // team block reads all threads from the store here so no chat surface
-  // has to pass it in. It's omitted entirely when there's nothing shared.
+/**
+ * Assembles the full system prompt: character voice, then who the user is,
+ * then the shared team memory (what they've told everyone else). The team
+ * block reads all threads from the store so no caller has to pass it in;
+ * it's omitted entirely when there's nothing shared.
+ */
+function buildSystem(characterId: CharacterId, userName: string): string {
+  const character = getCharacter(characterId);
   const teamContext = buildTeamContext(characterId, useChatStore.getState().threads, userName);
-  const systemSections = [buildSystemPrompt(character), buildUserContext(userName)];
+  const sections = [buildSystemPrompt(character), buildUserContext(userName)];
   if (teamContext) {
-    systemSections.push(teamContext);
+    sections.push(teamContext);
   }
+  return sections.join('\n\n---\n\n');
+}
 
+/** Runs one messages.create call and returns the joined text, or throws. */
+async function requestText(
+  characterId: CharacterId,
+  userName: string,
+  apiMessages: ApiMessage[],
+): Promise<string> {
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system: systemSections.join('\n\n---\n\n'),
+    system: buildSystem(characterId, userName),
     messages: apiMessages,
   });
 
@@ -112,6 +118,52 @@ export async function getCharacterReply(
     throw new Error('Empty response from model');
   }
   return text;
+}
+
+/**
+ * Sends the conversation to Claude and returns the character's reply text.
+ *
+ * @param characterId which specialist is speaking
+ * @param history the full thread so far (persisted messages, oldest first)
+ * @param userName how the character should address the user
+ */
+export async function getCharacterReply(
+  characterId: CharacterId,
+  history: ChatMessage[],
+  userName: string,
+): Promise<string> {
+  return requestText(characterId, userName, toApiMessages(history));
+}
+
+/**
+ * The ephemeral instruction that produces a warm return greeting. It is
+ * appended as the final user turn for the greeting call ONLY — never
+ * persisted or shown — so the character greets in-voice without any change
+ * to their (validated) system prompt.
+ */
+const RETURN_GREETING_DIRECTIVE =
+  '[The user just re-entered your space after some time away. Greet them back briefly in your own voice — one or two lines. If something from an earlier conversation fits naturally, reference it warmly; if not, a simple hello is enough. Do not interrogate them or force a topic. This is a greeting, not a coaching message.]';
+
+/**
+ * Generates a context-aware return greeting using the full prior history,
+ * so the specialist can naturally reference earlier conversations ("how'd
+ * that meal idea go?"). The directive turn is not part of `history` and is
+ * never persisted.
+ *
+ * @param characterId which specialist is greeting
+ * @param history the full prior thread (persisted messages)
+ * @param userName how the character should address the user
+ */
+export async function getReturnGreeting(
+  characterId: CharacterId,
+  history: ChatMessage[],
+  userName: string,
+): Promise<string> {
+  const apiMessages = [
+    ...toApiMessages(history),
+    { role: 'user' as const, content: RETURN_GREETING_DIRECTIVE },
+  ];
+  return requestText(characterId, userName, apiMessages);
 }
 
 /**

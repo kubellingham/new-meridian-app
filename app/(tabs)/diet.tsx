@@ -27,6 +27,7 @@ export default function DietScreen() {
       characterId={nsId}
       subtitle={`${ns.origin} · Nutrition Specialist`}
       greeting={`I'm ${ns.name}. When you eat something, just tell me about it the way you'd tell a friend — I'll take it from there.`}
+      returnGreeting="You're back. What are we working with today?"
       placeholder="Tell me what you ate…"
     />
   );

@@ -16,16 +16,26 @@ export interface ChatMessage {
 }
 
 /**
- * Conversation threads, keyed per character so each relationship keeps
- * its own history (and survives app restarts via AsyncStorage).
+ * Conversation threads, keyed per character so each relationship keeps its
+ * own full history (and survives app restarts via AsyncStorage). The full
+ * history is the specialist's memory — every API call includes it — even
+ * though each visit only *shows* the current exchange.
  */
 interface ChatState {
   threads: Partial<Record<CharacterId, ChatMessage[]>>;
+  /** When the user last entered each character's space (unix ms). Drives
+   * the fresh-vs-return greeting decision. */
+  lastVisitAt: Partial<Record<CharacterId, number>>;
+  /** True once AsyncStorage rehydration has finished. */
+  hasHydrated: boolean;
   append: (characterId: CharacterId, message: ChatMessage) => void;
   /** Removes a single message — used to retry after an error. */
   remove: (characterId: CharacterId, messageId: string) => void;
+  /** Records that the user just entered this character's space. */
+  setLastVisit: (characterId: CharacterId, at: number) => void;
   clearThread: (characterId: CharacterId) => void;
   clearAll: () => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 /** Builds a unique-enough id for a locally created message. */
@@ -37,6 +47,8 @@ export const useChatStore = create<ChatState>()(
   persist(
     (set) => ({
       threads: {},
+      lastVisitAt: {},
+      hasHydrated: false,
       append: (characterId, message) =>
         set((state) => ({
           threads: {
@@ -53,17 +65,27 @@ export const useChatStore = create<ChatState>()(
             ),
           },
         })),
+      setLastVisit: (characterId, at) =>
+        set((state) => ({
+          lastVisitAt: { ...state.lastVisitAt, [characterId]: at },
+        })),
       clearThread: (characterId) =>
         set((state) => {
           const next = { ...state.threads };
           delete next[characterId];
           return { threads: next };
         }),
-      clearAll: () => set({ threads: {} }),
+      clearAll: () => set({ threads: {}, lastVisitAt: {} }),
+      setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
       name: 'meridian-chats',
       storage: createJSONStorage(() => AsyncStorage),
+      // hasHydrated is runtime-only; persist threads and visit times.
+      partialize: ({ hasHydrated, ...rest }) => rest,
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );

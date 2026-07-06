@@ -10,6 +10,7 @@ export default function SeraScreen() {
       characterId="sera"
       subtitle="Behavioral Consultant · Meridian"
       greeting="I'm Sera. Whatever today's actually been like — that's what I'm here for. What's on your mind?"
+      returnGreeting="Hey, you. Good to see you back — what's here right now?"
       placeholder="What's on your mind?"
       showBack
     />

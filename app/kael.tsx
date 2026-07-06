@@ -12,6 +12,7 @@ export default function KaelScreen() {
       characterId="kael"
       subtitle="Operations Consultant · Meridian"
       greeting="Kael. I handle the operational side — schedule, progress, the moving parts. What do you need?"
+      returnGreeting="Back. What do you need?"
       placeholder="What do you need?"
       showBack
     />
