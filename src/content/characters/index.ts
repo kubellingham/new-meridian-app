@@ -18,7 +18,7 @@ import { tobias } from './tobias';
 import { yasmin } from './yasmin';
 import type { Character, CharacterId, CharacterRole } from './types';
 
-export { buildSystemPrompt, NS_ROLE_BLOCK, SHARED_INSTRUCTION_BLOCK } from './shared';
+export { buildSystemPrompt, NS_ROLE_BLOCK, SHARED_INSTRUCTION_BLOCK, TEAM_CROSS_REFERENCE_BLOCK } from './shared';
 export type { Character, CharacterId, CharacterRole } from './types';
 
 /** Every V1 character, in presentation order: consultants, trainers, NS. */

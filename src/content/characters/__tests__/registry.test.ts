@@ -10,6 +10,7 @@ import {
   getCharacter,
   NUTRITION_SPECIALISTS,
   SHARED_INSTRUCTION_BLOCK,
+  TEAM_CROSS_REFERENCE_BLOCK,
   TRAINERS,
 } from '../index';
 
@@ -52,6 +53,13 @@ describe('prompt assembly', () => {
       const prompt = buildSystemPrompt(character);
       const hasNsBlock = prompt.includes('HOW MEAL LOGGING WORKS');
       expect(hasNsBlock).toBe(character.role === 'nutrition-specialist');
+    }
+  });
+
+  it('includes the team cross-reference block in every prompt', () => {
+    for (const character of CHARACTERS) {
+      const prompt = buildSystemPrompt(character);
+      expect(prompt).toContain(TEAM_CROSS_REFERENCE_BLOCK);
     }
   });
 });
