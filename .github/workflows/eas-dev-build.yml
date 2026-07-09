@@ -1,0 +1,59 @@
+# One-time (and occasional) native build of the Android development client.
+#
+# Runs on GitHub's infrastructure — NOT the Claude sandbox, whose egress
+# policy blocks api.expo.dev — so this is how a build reaches EAS at all.
+# Trigger it by hand from the GitHub "Actions" tab ("Run workflow"); no
+# laptop required. You only need a new build when native code or native
+# dependencies change. Everyday JavaScript changes ship via eas-update.yml.
+#
+# Requires the repository secret EXPO_TOKEN (Settings → Secrets and
+# variables → Actions). The Anthropic key is read from an EAS environment
+# variable named EXPO_PUBLIC_ANTHROPIC_API_KEY in the "development"
+# environment (created once in the Expo dashboard), so it is embedded in
+# the APK the same way it is locally.
+name: EAS dev build (Android)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Link project and configure updates
+        run: |
+          eas init --non-interactive --force
+          eas update:configure --platform android --non-interactive
+
+      - name: Commit EAS project id / update config if changed
+        run: |
+          if ! git diff --quiet -- app.json eas.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add app.json eas.json
+            git commit -m "chore(eas): link project id and configure updates"
+            git push
+          fi
+
+      - name: Build Android development client
+        run: eas build --platform android --profile development --non-interactive --no-wait
