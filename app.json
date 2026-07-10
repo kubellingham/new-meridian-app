@@ -8,7 +8,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "enabled": true
+      "enabled": true,
+      "url": "https://u.expo.dev/39d76476-08c5-469c-8ea0-f9f7a63f56db"
     },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -51,6 +52,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "39d76476-08c5-469c-8ea0-f9f7a63f56db"
+      }
     }
   }
 }
