@@ -25,11 +25,8 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Quiet greeting — no exclamation, per the brief. */}
         <AppText variant="title">Good day, {name}.</AppText>
-        {/* OTA acceptance marker — shipped via EAS Update to prove the
-            pipeline reaches the device. Revert to "Here's where things
-            stand." once the update is confirmed on the phone. */}
         <AppText variant="label" style={styles.subheading}>
-          Hello Meridian — EAS Update works.
+          Here&apos;s where things stand.
         </AppText>
 
         {/* Consultant entry points — temporary placement until Home widgets
