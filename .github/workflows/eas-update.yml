@@ -62,4 +62,13 @@ jobs:
 
       - name: Publish OTA update
         if: steps.guard.outputs.ok == 'true'
-        run: eas update --branch development --environment development --message "${{ github.event.head_commit.message || 'manual update' }}"
+        env:
+          # Pass the message through the env, not shell expansion. Direct
+          # ${{ }} interpolation of a commit message that contains quotes
+          # or apostrophes breaks the surrounding shell string.
+          UPDATE_MESSAGE: ${{ github.event.head_commit.message || 'manual update' }}
+        run: |
+          # Trim to the first line and cap length — long multi-line commit
+          # bodies are noise in the EAS Update list.
+          SHORT_MESSAGE="$(printf '%s' "$UPDATE_MESSAGE" | head -n 1 | cut -c1-200)"
+          eas update --branch development --environment development --message "$SHORT_MESSAGE"
