@@ -21,6 +21,7 @@
       "supportsTablet": false
     },
     "android": {
+      "package": "com.kubellingham.meridian",
       "adaptiveIcon": {
         "backgroundColor": "#080E1A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
