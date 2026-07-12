@@ -211,7 +211,12 @@ export function CharacterChat({
     <Screen noPadding>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // Push the input above the keyboard on both platforms. On Android
+        // 'undefined' is a no-op that leaves the input covered — edge-to-
+        // edge mode blunts the automatic adjustResize behavior — so we
+        // opt into 'height', which resizes the KAV region to just above
+        // the keyboard.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Character header — persistent presence at the top of the space. */}
         <View style={styles.header}>

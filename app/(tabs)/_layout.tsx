@@ -36,6 +36,10 @@ export default function TabLayout() {
           borderTopColor: colors.border,
         },
         tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11 },
+        // Hides the tab bar while the soft keyboard is open — otherwise it
+        // sits between the input and the keyboard and pushes the input
+        // behind the keys on Android.
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen
