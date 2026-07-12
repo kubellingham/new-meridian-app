@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { buildSystemPrompt, getCharacter, type CharacterId } from '@/src/content/characters';
 import { useChatStore, type ChatMessage } from '@/src/store/chat-store';
+import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { buildTeamContext } from './team-context';
 
@@ -87,7 +88,13 @@ function toApiMessages(history: ChatMessage[]): ApiMessage[] {
  */
 function buildSystem(characterId: CharacterId, userName: string): string {
   const character = getCharacter(characterId);
-  const teamContext = buildTeamContext(characterId, useChatStore.getState().threads, userName);
+  const { hasHydrated: _dataHydrated, ...userData } = useUserDataStore.getState();
+  const teamContext = buildTeamContext(
+    characterId,
+    useChatStore.getState().threads,
+    userName,
+    userData,
+  );
   const sections = [buildSystemPrompt(character), buildUserContext(userName)];
   if (teamContext) {
     sections.push(teamContext);
