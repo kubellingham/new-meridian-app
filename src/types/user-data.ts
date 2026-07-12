@@ -102,6 +102,52 @@ export interface RecentAdjustment {
   summary: string;
 }
 
+/**
+ * The kinds of decisions that ripple across the team — Collaboration Model
+ * §3.2. New kinds get added here as new emitters land; the union stays the
+ * source of truth so downstream code (team-context, morning brief) can
+ * exhaust it.
+ *
+ * - programme-block-shift: trainer moved the user between blocks
+ *   (cutting → maintenance, etc.); the NS needs to know so macros follow.
+ * - macro-target-change: NS made a significant calorie/macro shift; the
+ *   trainer needs to know so recovery capacity is right.
+ * - injury-flag: trainer or user surfaced a pain / injury; Kael routes,
+ *   Sera may follow if there's psychological weight.
+ * - emotional-flag: Sera saw wellbeing weight in an ordinary message; Kael
+ *   integrates into his next brief.
+ * - plateau-detected: Kael flagged a stall from the numbers; the specialist
+ *   whose domain owns the plateau owns the response.
+ * - goal-milestone: a goal or streak crossed a threshold worth surfacing.
+ * - morning-brief: Kael's daily review; scheduled by the periodic timer,
+ *   consumed by the Home surface. First real emitter next session.
+ */
+export type EventKind =
+  | 'programme-block-shift'
+  | 'macro-target-change'
+  | 'injury-flag'
+  | 'emotional-flag'
+  | 'plateau-detected'
+  | 'goal-milestone'
+  | 'morning-brief';
+
+/**
+ * A single event: one specialist noted a domain-changing decision, and
+ * one or more teammates need to know. Once every character in `to` has
+ * appeared in `seenBy`, the event stays in the log but is no longer
+ * surfaced in team context (the team has processed it).
+ */
+export interface TeamEvent {
+  id: string;
+  at: number; // epoch ms
+  from: CharacterId; // who fired the event
+  to: CharacterId[]; // whose domain is affected
+  kind: EventKind;
+  summary: string; // short human-readable line — what the deciding specialist would say
+  reasoning?: string; // optional "why" — for the affected specialist to reference in-voice
+  seenBy: CharacterId[]; // characters (from `to`) who have processed this event
+}
+
 /** The top-level shape held by the store. Categories default to empty objects. */
 export interface SharedUserData {
   userProfile: UserProfile;
@@ -110,6 +156,8 @@ export interface SharedUserData {
   dailySignals: DailySignals;
   sessionFeedback: SessionFeedback;
   patternFlags: PatternFlag[];
+  /** Append-only log of domain-changing decisions across the team. */
+  events: TeamEvent[];
 }
 
 /** Default value for a brand-new account — every category present but empty. */
@@ -120,4 +168,5 @@ export const EMPTY_SHARED_USER_DATA: SharedUserData = {
   dailySignals: {},
   sessionFeedback: {},
   patternFlags: [],
+  events: [],
 };

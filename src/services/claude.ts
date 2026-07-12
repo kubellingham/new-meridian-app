@@ -4,6 +4,7 @@ import { buildSystemPrompt, getCharacter, type CharacterId } from '@/src/content
 import { useChatStore, type ChatMessage } from '@/src/store/chat-store';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
+import { pendingEventIdsFor } from './events';
 import { buildTeamContext } from './team-context';
 
 /**
@@ -128,7 +129,11 @@ async function requestText(
 }
 
 /**
- * Sends the conversation to Claude and returns the character's reply text.
+ * Sends the conversation to Claude and returns the character's reply
+ * text. After a successful reply, marks every pending team event for
+ * this character as seen — their reply is the point at which they had
+ * a chance to weave the event context in, so it's no longer "pending"
+ * for their next turn.
  *
  * @param characterId which specialist is speaking
  * @param history the full thread so far (persisted messages, oldest first)
@@ -139,7 +144,16 @@ export async function getCharacterReply(
   history: ChatMessage[],
   userName: string,
 ): Promise<string> {
-  return requestText(characterId, userName, toApiMessages(history));
+  const text = await requestText(characterId, userName, toApiMessages(history));
+  acknowledgePendingEvents(characterId);
+  return text;
+}
+
+/** Marks every event pending for this character as seen. */
+function acknowledgePendingEvents(characterId: CharacterId): void {
+  const { events, markEventSeen } = useUserDataStore.getState();
+  const ids = pendingEventIdsFor(characterId, events);
+  for (const id of ids) markEventSeen(id, characterId);
 }
 
 /**

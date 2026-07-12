@@ -1,6 +1,7 @@
 import { getCharacter, type CharacterId } from '@/src/content/characters';
 import type { ChatMessage } from '@/src/store/chat-store';
-import type { SharedUserData } from '@/src/types/user-data';
+import type { SharedUserData, TeamEvent } from '@/src/types/user-data';
+import { pendingEventsFor } from './events';
 
 /**
  * The shared-database MVP (brief §4, Collaboration Model §2). Every
@@ -171,10 +172,34 @@ function buildConversationBlock(
 }
 
 /**
+ * Builds the "your teammates have asked you to know" block — the
+ * pending events for the current character, formatted the same way
+ * anyone on a real team would carry a heads-up from a colleague.
+ * Empty when there's nothing pending.
+ */
+function buildEventsBlock(
+  currentId: CharacterId,
+  events: readonly TeamEvent[] | undefined,
+): string {
+  if (!events || events.length === 0) return '';
+  const pending = pendingEventsFor(currentId, events);
+  if (pending.length === 0) return '';
+
+  const lines = pending.map((event) => {
+    const source = getCharacter(event.from).name;
+    const reasoning = event.reasoning ? ` — ${event.reasoning}` : '';
+    return `- ${source}: ${event.summary}${reasoning}`;
+  });
+
+  return `RECENT DECISIONS YOUR TEAM HAS ASKED YOU TO KNOW ABOUT:\nYou already heard these through the team the way a colleague on a real team hears things — briefly, in passing, from the person who made the call. Reference them naturally in what you say next; don't repeat them back verbatim, and never say "your file shows" or "your log says."\n\n${lines.join('\n')}`;
+}
+
+/**
  * Builds the full team-context block for the character now speaking:
- * structured facts + conversation digest. Both parts are optional and
- * gated on having anything to say — the caller can concatenate whatever
- * comes back without worrying about empty sections.
+ * structured facts + pending team events + conversation digest. Each
+ * part is optional and gated on having anything to say — the caller
+ * can concatenate whatever comes back without worrying about empty
+ * sections.
  *
  * @param currentId the character about to speak
  * @param threads all persisted conversation threads (from the chat store)
@@ -189,7 +214,10 @@ export function buildTeamContext(
   data?: SharedUserData,
 ): string {
   const factsBlock = buildFactsBlock(userName, data);
+  const eventsBlock = buildEventsBlock(currentId, data?.events);
   const conversationBlock = buildConversationBlock(currentId, threads, userName);
 
-  return [factsBlock, conversationBlock].filter((b) => b.length > 0).join('\n\n');
+  return [factsBlock, eventsBlock, conversationBlock]
+    .filter((b) => b.length > 0)
+    .join('\n\n');
 }

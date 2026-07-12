@@ -6,7 +6,11 @@
 import { buildTeamContext } from '../team-context';
 import type { ChatMessage } from '@/src/store/chat-store';
 import type { CharacterId } from '@/src/content/characters';
-import { EMPTY_SHARED_USER_DATA, type SharedUserData } from '@/src/types/user-data';
+import {
+  EMPTY_SHARED_USER_DATA,
+  type SharedUserData,
+  type TeamEvent,
+} from '@/src/types/user-data';
 
 /** Builds a chat message quickly. */
 function msg(role: 'user' | 'assistant', text: string, error?: boolean): ChatMessage {
@@ -147,5 +151,90 @@ describe('buildTeamContext shared-data block', () => {
     expect(block).toContain('178 cm tall');
     expect(block).toContain('With Sera');
     expect(block).toContain('Innocent: feeling stuck');
+  });
+});
+
+describe('buildTeamContext events block', () => {
+  /** Compact event helper for these tests. */
+  function evt(overrides: Partial<TeamEvent> = {}): TeamEvent {
+    return {
+      id: overrides.id ?? 'e1',
+      at: overrides.at ?? 1,
+      from: overrides.from ?? 'cassidy',
+      to: overrides.to ?? ['nneka'],
+      kind: overrides.kind ?? 'programme-block-shift',
+      summary: overrides.summary ?? 'pulled volume back this week',
+      reasoning: overrides.reasoning,
+      seenBy: overrides.seenBy ?? [],
+    };
+  }
+
+  /** SharedUserData wrapper with events populated. */
+  function withEvents(events: TeamEvent[]): SharedUserData {
+    return { ...EMPTY_SHARED_USER_DATA, events };
+  }
+
+  it('surfaces a pending event to the affected specialist', () => {
+    const data = withEvents([
+      evt({ from: 'cassidy', to: ['nneka'], summary: 'pulled volume back this week' }),
+    ]);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('Cassidy');
+    expect(block).toContain('pulled volume back this week');
+  });
+
+  it('names the deciding specialist by name and includes reasoning when present', () => {
+    const data = withEvents([
+      evt({
+        from: 'cassidy',
+        to: ['nneka'],
+        summary: 'pulled volume back this week',
+        reasoning: 'user slept badly two nights running',
+      }),
+    ]);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('Cassidy: pulled volume back this week');
+    expect(block).toContain('user slept badly two nights running');
+  });
+
+  it('hides events not addressed to the current character', () => {
+    const data = withEvents([
+      evt({ from: 'cassidy', to: ['sera'], summary: 'flagged mood dip' }),
+    ]);
+    expect(buildTeamContext('nneka', {}, 'Innocent', data)).toBe('');
+  });
+
+  it('hides events the current character has already seen', () => {
+    const data = withEvents([
+      evt({ id: '1', from: 'cassidy', to: ['nneka'], seenBy: ['nneka'] }),
+    ]);
+    expect(buildTeamContext('nneka', {}, 'Innocent', data)).toBe('');
+  });
+
+  it('frames the events block as team memory, not a record lookup', () => {
+    const data = withEvents([
+      evt({ from: 'cassidy', to: ['nneka'], summary: 'pulled volume back' }),
+    ]);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    // The block warns off "record"/"log"/"file shows" phrasing.
+    expect(block).toMatch(/never say "your file shows"/i);
+    expect(block).toMatch(/heard these through the team/i);
+  });
+
+  it('sits between the facts block and the conversation digest when all three exist', () => {
+    const data: SharedUserData = {
+      ...EMPTY_SHARED_USER_DATA,
+      userProfile: { height: 178 },
+      events: [evt({ from: 'cassidy', to: ['nneka'], summary: 'lightened week' })],
+    };
+    const threads: Threads = { sera: activeThread('feeling stuck') };
+    const block = buildTeamContext('nneka', threads, 'Innocent', data);
+
+    const factsIndex = block.indexOf('178 cm tall');
+    const eventsIndex = block.indexOf('lightened week');
+    const conversationIndex = block.indexOf('With Sera');
+    expect(factsIndex).toBeGreaterThan(-1);
+    expect(eventsIndex).toBeGreaterThan(factsIndex);
+    expect(conversationIndex).toBeGreaterThan(eventsIndex);
   });
 });

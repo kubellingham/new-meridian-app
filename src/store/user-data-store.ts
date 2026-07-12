@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import type { CharacterId } from '@/src/content/characters';
 import {
   EMPTY_SHARED_USER_DATA,
   type DailySignals,
@@ -10,6 +11,7 @@ import {
   type ProgrammeState,
   type SessionFeedback,
   type SharedUserData,
+  type TeamEvent,
   type UserProfile,
 } from '@/src/types/user-data';
 
@@ -34,6 +36,19 @@ interface UserDataState extends SharedUserData {
   updateSessionFeedback: (patch: Partial<SessionFeedback>) => void;
   /** Adds a single flag to the array. */
   addPatternFlag: (flag: PatternFlag) => void;
+  /**
+   * Fires a domain-changing decision into the shared log (Collaboration
+   * Model §3.2). Affected specialists pick it up via team-context on
+   * their next turn, and it drops out of the pending view once every
+   * character in `to` has acknowledged it.
+   */
+  emitEvent: (event: TeamEvent) => void;
+  /**
+   * Marks one event as processed by `characterId` — used after the
+   * character has replied to the user, since their reply is the point
+   * at which they had a chance to weave the event's context in.
+   */
+  markEventSeen: (eventId: string, characterId: CharacterId) => void;
   /** Wipes everything — dev/reset action. */
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -56,6 +71,15 @@ export const useUserDataStore = create<UserDataState>()(
         set((state) => ({ sessionFeedback: { ...state.sessionFeedback, ...patch } })),
       addPatternFlag: (flag) =>
         set((state) => ({ patternFlags: [...state.patternFlags, flag] })),
+      emitEvent: (event) => set((state) => ({ events: [...state.events, event] })),
+      markEventSeen: (eventId, characterId) =>
+        set((state) => ({
+          events: state.events.map((e) =>
+            e.id === eventId && !e.seenBy.includes(characterId)
+              ? { ...e, seenBy: [...e.seenBy, characterId] }
+              : e,
+          ),
+        })),
       reset: () => set({ ...EMPTY_SHARED_USER_DATA }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
