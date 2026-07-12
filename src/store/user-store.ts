@@ -14,13 +14,17 @@ interface UserState {
   name: string;
   /** Chosen nutrition specialist. Null until setup completes. */
   nsId: CharacterId | null;
-  /** Chosen trainer. Optional in the temporary setup. */
+  /**
+   * Chosen trainer. Required by the current setup screen so the Training
+   * tab has a trainer to talk to. Stays nullable in the type to support
+   * users who completed setup before this became required.
+   */
   trainerId: CharacterId | null;
   /** True once the (temporary) setup has been completed. */
   setupComplete: boolean;
   /** True once AsyncStorage rehydration has finished. */
   hasHydrated: boolean;
-  completeSetup: (data: { name: string; nsId: CharacterId; trainerId?: CharacterId }) => void;
+  completeSetup: (data: { name: string; nsId: CharacterId; trainerId: CharacterId }) => void;
   /** Wipes the profile — dev/testing action exposed on the Profile tab. */
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -35,7 +39,7 @@ export const useUserStore = create<UserState>()(
       setupComplete: false,
       hasHydrated: false,
       completeSetup: ({ name, nsId, trainerId }) =>
-        set({ name, nsId, trainerId: trainerId ?? null, setupComplete: true }),
+        set({ name, nsId, trainerId, setupComplete: true }),
       reset: () => set({ name: '', nsId: null, trainerId: null, setupComplete: false }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),

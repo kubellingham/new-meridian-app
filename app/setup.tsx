@@ -21,8 +21,9 @@ import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
 /**
  * TEMPORARY setup screen — a development stand-in until the scripted
  * onboarding (Meridian_Weight_Loss_Onboarding_Script_v1.md) is built.
- * Collects the bare minimum the app needs to function: a name and a
- * nutrition specialist, plus an optional trainer.
+ * Collects the bare minimum the app needs to function: name, nutrition
+ * specialist, and trainer. All three are required so every tab has an
+ * owner when the app boots.
  */
 export default function SetupScreen() {
   const completeSetup = useUserStore((s) => s.completeSetup);
@@ -30,12 +31,12 @@ export default function SetupScreen() {
   const [nsId, setNsId] = useState<CharacterId | null>(null);
   const [trainerId, setTrainerId] = useState<CharacterId | null>(null);
 
-  const canStart = name.trim().length > 0 && nsId !== null;
+  const canStart = name.trim().length > 0 && nsId !== null && trainerId !== null;
 
   /** Persists the choices and enters the app proper. */
   function handleStart() {
-    if (!canStart || !nsId) return;
-    completeSetup({ name: name.trim(), nsId, trainerId: trainerId ?? undefined });
+    if (!canStart || !nsId || !trainerId) return;
+    completeSetup({ name: name.trim(), nsId, trainerId });
     router.replace('/(tabs)');
   }
 
@@ -96,12 +97,16 @@ export default function SetupScreen() {
           ))}
 
           <AppText variant="label" style={styles.fieldLabel}>
-            Pick a trainer (optional for now)
+            Pick your trainer
+          </AppText>
+          <AppText variant="caption" style={styles.fieldHint}>
+            Every user gets one — Cassidy, Tobias, or Marco each bring a different approach
+            to weight loss.
           </AppText>
           {TRAINERS.map((trainer) => (
             <Pressable
               key={trainer.id}
-              onPress={() => setTrainerId(trainerId === trainer.id ? null : trainer.id)}
+              onPress={() => setTrainerId(trainer.id)}
               testID={`setup-trainer-${trainer.id}`}
             >
               <Card
