@@ -1,17 +1,20 @@
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { CalorieSummary } from '@/src/components/diet';
 import { TeamNoteCard } from '@/src/components/home/team-note-card';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
+import { dailyTotals, entriesForDate, todayLocalISODate } from '@/src/services/food-log';
 import {
   generateMorningBrief,
   makeMorningBriefEvent,
   todaysBrief,
   undeliveredBrief,
 } from '@/src/services/morning-brief';
+import { currentStreak, formatStreak } from '@/src/services/streak';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
@@ -21,9 +24,9 @@ import { colors, spacing } from '@/src/theme/theme';
  * of everything and not a chat surface.
  *
  * V1 default widgets for a weight-loss user, in order: calorie ring,
- * weekly weigh-in, streak, sleep score, steps, NS daily suggestion.
- * All values are static placeholders this session; real data (food logs,
- * Health Connect) arrives in later sessions.
+ * weekly weigh-in, streak, sleep score, steps, NS daily suggestion. The
+ * top three read real store data (food logs, weight, completed sessions);
+ * sleep and steps stay honest placeholders until Health Connect lands.
  */
 export default function HomeScreen() {
   const name = useUserStore((s) => s.name);
@@ -31,6 +34,11 @@ export default function HomeScreen() {
   const ns = nsId ? getCharacter(nsId) : null;
 
   const events = useUserDataStore((s) => s.events);
+  const foodLog = useUserDataStore((s) => s.foodLog);
+  const nutritionState = useUserDataStore((s) => s.nutritionState);
+  const recentSessions = useUserDataStore((s) => s.programmeState.recentSessions);
+  const currentWeight = useUserDataStore((s) => s.dailySignals.currentWeight);
+  const goalWeight = useUserDataStore((s) => s.userProfile.goalWeight);
   const hasDataHydrated = useUserDataStore((s) => s.hasHydrated);
   const emitEvent = useUserDataStore((s) => s.emitEvent);
   // Guards against firing a second generation while the first is in flight.
@@ -56,6 +64,14 @@ export default function HomeScreen() {
   }, [hasDataHydrated]);
 
   const pendingBrief = undeliveredBrief(events);
+
+  const today = todayLocalISODate();
+  const caloriesToday = dailyTotals(entriesForDate(foodLog ?? [], today)).calories;
+  const streak = currentStreak(foodLog ?? [], recentSessions ?? [], today);
+  const toGoal =
+    currentWeight !== undefined && goalWeight !== undefined
+      ? Math.round((currentWeight - goalWeight) * 10) / 10
+      : null;
 
   return (
     <Screen>
@@ -102,34 +118,65 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {/* 1. Daily calorie ring (placeholder numbers). */}
-        <Card style={styles.widget}>
-          <AppText variant="label">Calories today</AppText>
-          <View style={styles.heroRow}>
-            <AppText variant="hero">1,420</AppText>
-            <AppText variant="label" style={styles.heroSuffix}>
-              of 2,100
-            </AppText>
-          </View>
-          <AppText variant="caption">Logging connects this widget in a later session.</AppText>
-        </Card>
+        {/* 1. Daily calories — real intake vs. target. Tap → Diet Corner. */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/diet')}
+          accessibilityRole="button"
+          testID="home-calories"
+        >
+          <CalorieSummary consumed={caloriesToday} target={nutritionState.calorieTarget} />
+        </Pressable>
 
-        {/* 2. Weekly weigh-in. */}
-        <Card style={styles.widget}>
-          <AppText variant="label">Weekly weigh-in</AppText>
-          <AppText variant="subtitle" style={styles.widgetValue}>
-            Sunday morning
-          </AppText>
-          <AppText variant="caption">No entries yet.</AppText>
-        </Card>
+        {/* 2. Weigh-in — most recent weight against the goal. Tap → Diet Corner. */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/diet')}
+          accessibilityRole="button"
+          testID="home-weighin"
+        >
+          <Card style={styles.widget}>
+            <AppText variant="label">Weigh-in</AppText>
+            {currentWeight !== undefined ? (
+              <>
+                <AppText variant="subtitle" style={styles.widgetValue} testID="home-weight-value">
+                  {currentWeight} kg
+                </AppText>
+                <AppText variant="caption">
+                  {toGoal === null
+                    ? 'Goal weight not set.'
+                    : toGoal > 0
+                      ? `${toGoal} kg to go.`
+                      : toGoal < 0
+                        ? `${Math.abs(toGoal)} kg past goal.`
+                        : 'At your goal weight.'}
+                </AppText>
+              </>
+            ) : (
+              <>
+                <AppText variant="subtitle" style={styles.widgetValue}>
+                  Not logged yet
+                </AppText>
+                <AppText variant="caption">Log your first weight in the Diet tab.</AppText>
+              </>
+            )}
+          </Card>
+        </Pressable>
 
-        {/* 3. Streak counter. */}
+        {/* 3. Streak — days with a food log or a completed workout. */}
         <Card style={styles.widget}>
           <AppText variant="label">Streak</AppText>
-          <AppText variant="subtitle" style={styles.widgetValue} color={colors.success}>
-            Day 1
+          <AppText
+            variant="subtitle"
+            style={styles.widgetValue}
+            color={streak > 0 ? colors.success : colors.text}
+            testID="home-streak-value"
+          >
+            {formatStreak(streak)}
           </AppText>
-          <AppText variant="caption">Every day you show up counts once.</AppText>
+          <AppText variant="caption">
+            {streak > 0
+              ? 'Every day you show up counts once.'
+              : 'Log a meal or finish a workout to start.'}
+          </AppText>
         </Card>
 
         {/* 4 & 5. Sleep and steps — Health Connect in a later session. */}
@@ -194,15 +241,6 @@ const styles = StyleSheet.create({
   widgetValue: {
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
-  },
-  heroRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  heroSuffix: {
-    marginBottom: 6,
   },
   row: {
     flexDirection: 'row',
