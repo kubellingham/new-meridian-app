@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { FoodConfirmList } from '@/src/components/diet';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
@@ -19,41 +19,71 @@ function asMealSlot(value: string | undefined): MealSlot {
     : 'snack';
 }
 
+/** One light tap the moment a barcode is recognized. Native only. */
+function buzz() {
+  if (Platform.OS === 'web') return;
+  try {
+    const Haptics = require('expo-haptics') as typeof import('expo-haptics');
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  } catch {
+    // Haptics unavailable — skip silently.
+  }
+}
+
+/** The scanner's visible state — one machine instead of flag sprawl. */
+type ScanStatus =
+  | { kind: 'scanning' }
+  | { kind: 'looking-up'; barcode: string }
+  | { kind: 'found'; item: FoodItem }
+  | { kind: 'not-found'; barcode: string }
+  | { kind: 'error'; message: string };
+
 /**
- * Barcode scanning → Open Food Facts lookup → confirm → log. The camera
- * pauses after each hit so one product isn't logged five times while
- * the user reads the result.
+ * Barcode scanning → Open Food Facts lookup → confirm → log.
+ *
+ * Capture is automatic — the frame overlay, the haptic at detection, and
+ * the status line make that legible. A product missing from the database
+ * is a fork, not a dead end: photograph it (the NS identifies it) or add
+ * it manually.
  */
 export default function FoodScanScreen() {
   const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
   const logFood = useUserDataStore((s) => s.logFood);
   const [permission, requestPermission] = useCameraPermissions();
 
-  const [looking, setLooking] = useState(false);
-  const [found, setFound] = useState<FoodItem | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  // Ref (not state) so the scanner callback throttles synchronously.
+  const [status, setStatus] = useState<ScanStatus>({ kind: 'scanning' });
+  // Ref (not state) so the continuous scanner callback throttles
+  // synchronously — state updates land too late to stop the flood.
   const busyRef = useRef(false);
+
+  const meal = asMealSlot(mealParam);
 
   async function handleScanned(barcode: string) {
     if (busyRef.current) return;
     busyRef.current = true;
-    setLooking(true);
-    setNotice(null);
+    buzz(); // the phone reacts the instant the code is seen
+    setStatus({ kind: 'looking-up', barcode });
     try {
       const item = await lookupBarcode(barcode);
       if (item) {
-        setFound(item);
+        setStatus({ kind: 'found', item });
+        // stays busy — confirm list is up; "Scan another" resets
       } else {
-        setNotice("That product isn't in the database. You can add it manually.");
-        busyRef.current = false; // allow another scan
+        setStatus({ kind: 'not-found', barcode });
+        // stays busy — the fork card is up; "Scan again" resets
       }
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'Lookup failed.');
-      busyRef.current = false;
-    } finally {
-      setLooking(false);
+      setStatus({
+        kind: 'error',
+        message: e instanceof Error ? e.message : 'Lookup failed.',
+      });
     }
+  }
+
+  /** Back to live scanning (from not-found / error / found states). */
+  function resumeScanning() {
+    setStatus({ kind: 'scanning' });
+    busyRef.current = false;
   }
 
   function handleConfirm(foods: ParsedFood[]) {
@@ -62,7 +92,7 @@ export default function FoodScanScreen() {
         id: makeFoodLogId(),
         loggedAt: Date.now(),
         forDate: todayLocalISODate(),
-        meal: parsed.meal ?? asMealSlot(mealParam),
+        meal: parsed.meal ?? meal,
         source: 'barcode',
         servings: parsed.servings,
         item: parsed.item,
@@ -70,6 +100,8 @@ export default function FoodScanScreen() {
     }
     router.back();
   }
+
+  const scanningActive = status.kind === 'scanning' || status.kind === 'looking-up';
 
   return (
     <Screen>
@@ -87,17 +119,69 @@ export default function FoodScanScreen() {
           <AppText variant="title">Scan a barcode</AppText>
         </View>
 
-        {found ? (
-          <FoodConfirmList
-            foods={[{ item: found, servings: 1 }]}
-            defaultMeal={asMealSlot(mealParam)}
-            onConfirm={handleConfirm}
-          />
+        {status.kind === 'found' ? (
+          <>
+            <FoodConfirmList
+              foods={[{ item: status.item, servings: 1 }]}
+              defaultMeal={meal}
+              onConfirm={handleConfirm}
+            />
+            <Button
+              label="Scan another instead"
+              variant="ghost"
+              onPress={resumeScanning}
+              testID="scan-again"
+            />
+          </>
+        ) : status.kind === 'not-found' ? (
+          <Card tone="panel" style={styles.forkCard}>
+            <AppText variant="subtitle">Not in the database</AppText>
+            <AppText variant="caption" color={colors.muted} style={styles.forkBody}>
+              Barcode {status.barcode} isn&apos;t listed yet — happens a lot with local
+              products. Two good ways forward:
+            </AppText>
+            <Button
+              label="Photograph it instead"
+              onPress={() =>
+                router.replace({ pathname: '/food/photo', params: { meal } })
+              }
+              testID="scan-to-photo"
+            />
+            <Button
+              label="Add manually"
+              variant="secondary"
+              onPress={() =>
+                router.replace({ pathname: '/food/manual', params: { meal } })
+              }
+              testID="scan-to-manual"
+            />
+            <Button
+              label="Scan again"
+              variant="ghost"
+              onPress={resumeScanning}
+              testID="scan-retry"
+            />
+          </Card>
+        ) : status.kind === 'error' ? (
+          <Card style={styles.errorCard}>
+            <AppText variant="label" color={colors.warning}>
+              Lookup failed
+            </AppText>
+            <AppText variant="caption" style={styles.forkBody}>
+              {status.message}
+            </AppText>
+            <Button label="Try again" variant="secondary" onPress={resumeScanning} testID="scan-error-retry" />
+            <Button
+              label="Add manually"
+              variant="ghost"
+              onPress={() =>
+                router.replace({ pathname: '/food/manual', params: { meal } })
+              }
+            />
+          </Card>
         ) : !permission?.granted ? (
           <Card style={styles.permissionCard}>
-            <AppText variant="body">
-              Meridian needs the camera to read barcodes.
-            </AppText>
+            <AppText variant="body">Meridian needs the camera to read barcodes.</AppText>
             <Button
               label="Allow camera"
               onPress={() => void requestPermission()}
@@ -113,21 +197,33 @@ export default function FoodScanScreen() {
                 barcodeScannerSettings={{
                   barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
                 }}
-                onBarcodeScanned={({ data }) => void handleScanned(data)}
+                onBarcodeScanned={
+                  scanningActive ? ({ data }) => void handleScanned(data) : undefined
+                }
               />
+              {/* Scan frame — capture is automatic; the frame + status make
+                  the camera read as a scanner, not a viewfinder. */}
+              <View pointerEvents="none" style={styles.overlay}>
+                <View
+                  style={[
+                    styles.frame,
+                    status.kind === 'looking-up' && styles.frameActive,
+                  ]}
+                />
+              </View>
             </View>
-            <AppText variant="caption" color={colors.muted} style={styles.hint}>
-              {looking ? 'Looking it up…' : 'Point the camera at the product barcode.'}
-            </AppText>
+            <View style={styles.statusRow}>
+              {status.kind === 'looking-up' ? (
+                <AppText variant="label" color={colors.primary} style={styles.statusText}>
+                  Found it — checking the database…
+                </AppText>
+              ) : (
+                <AppText variant="caption" color={colors.muted} style={styles.statusText}>
+                  Line the barcode up in the frame — it captures by itself.
+                </AppText>
+              )}
+            </View>
           </>
-        )}
-
-        {notice && (
-          <Card style={styles.noticeCard}>
-            <AppText variant="caption" color={colors.warning}>
-              {notice}
-            </AppText>
-          </Card>
         )}
       </ScrollView>
     </Screen>
@@ -156,16 +252,41 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 3 / 4,
   },
-  hint: {
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frame: {
+    width: '78%',
+    height: '38%',
+    borderWidth: 2,
+    borderColor: 'rgba(240,244,255,0.55)',
+    borderRadius: radius.md,
+  },
+  frameActive: {
+    borderColor: colors.primary,
+  },
+  statusRow: {
+    alignItems: 'center',
+  },
+  statusText: {
     textAlign: 'center',
+  },
+  forkCard: {
+    gap: spacing.sm,
+  },
+  forkBody: {
+    marginBottom: spacing.xs,
+  },
+  errorCard: {
+    borderColor: colors.warning,
+    gap: spacing.sm,
   },
   permissionCard: {
     gap: spacing.md,
   },
   permissionButton: {
     marginTop: spacing.xs,
-  },
-  noticeCard: {
-    borderColor: colors.warning,
   },
 });

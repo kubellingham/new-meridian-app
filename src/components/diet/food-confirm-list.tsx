@@ -22,10 +22,20 @@ type FoodConfirmListProps = {
 type DraftFood = {
   name: string;
   calories: string;
-  servings: string;
+  /** Servings — or grams eaten, when the item is a per-100g database row. */
+  quantity: string;
   meal: MealSlot;
   base: ParsedFood;
 };
+
+/**
+ * Database items without label serving data are per-100g; nobody thinks
+ * in "1.5 servings of 100 g", so those rows ask for grams eaten instead
+ * (stored as servings = grams / 100 — the schema stays unchanged).
+ */
+function isPer100g(food: ParsedFood): boolean {
+  return food.item.servingDescription === '100 g';
+}
 
 /**
  * Review-before-log list used by the photo, barcode, and search flows.
@@ -46,7 +56,7 @@ export function FoodConfirmList({
       foods.map((f) => ({
         name: f.item.name,
         calories: String(Math.round(f.item.caloriesPerServing)),
-        servings: String(f.servings),
+        quantity: isPer100g(f) ? String(Math.round(f.servings * 100)) : String(f.servings),
         meal: f.meal ?? defaultMeal,
         base: f,
       })),
@@ -65,15 +75,21 @@ export function FoodConfirmList({
     const reviewed: ParsedFood[] = [];
     for (const d of drafts) {
       const calories = Number(d.calories);
-      const servings = Number(d.servings);
+      const quantity = Number(d.quantity);
       if (!d.name.trim() || !Number.isFinite(calories) || calories <= 0) continue;
+      const quantityValid = Number.isFinite(quantity) && quantity > 0;
+      const servings = isPer100g(d.base)
+        ? (quantityValid ? quantity : 100) / 100 // grams → multiples of 100 g
+        : quantityValid
+          ? quantity
+          : 1;
       reviewed.push({
         item: {
           ...d.base.item,
           name: d.name.trim(),
           caloriesPerServing: calories,
         },
-        servings: Number.isFinite(servings) && servings > 0 ? servings : 1,
+        servings,
         meal: d.meal,
       });
     }
@@ -107,7 +123,7 @@ export function FoodConfirmList({
           <View style={styles.numbersRow}>
             <View style={styles.numberField}>
               <AppText variant="caption" color={colors.muted}>
-                kcal / serving
+                {isPer100g(draft.base) ? 'kcal / 100 g' : 'kcal / serving'}
               </AppText>
               <TextInput
                 value={draft.calories}
@@ -119,17 +135,23 @@ export function FoodConfirmList({
             </View>
             <View style={styles.numberField}>
               <AppText variant="caption" color={colors.muted}>
-                servings
+                {isPer100g(draft.base) ? 'grams eaten' : 'servings'}
               </AppText>
               <TextInput
-                value={draft.servings}
-                onChangeText={(v) => patch(i, { servings: v })}
+                value={draft.quantity}
+                onChangeText={(v) => patch(i, { quantity: v })}
                 style={styles.input}
                 keyboardType="numeric"
-                testID={`confirm-servings-${i}`}
+                testID={`confirm-quantity-${i}`}
               />
             </View>
           </View>
+          {draft.base.item.servingDescription &&
+            !isPer100g(draft.base) && (
+              <AppText variant="caption" color={colors.muted}>
+                1 serving = {draft.base.item.servingDescription}
+              </AppText>
+            )}
 
           <View style={styles.mealRow}>
             {MEAL_SLOTS.map((slot) => (

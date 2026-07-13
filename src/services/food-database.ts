@@ -1,8 +1,9 @@
 /**
  * Open Food Facts client — the packaged-food database behind barcode
- * scanning and text search. Free, open, no API key. Nutrition comes back
- * per 100 g, so mapped items use servingDescription "100 g" and the user
- * scales with servings.
+ * scanning and text search. Free, open, no API key. Items are mapped
+ * per the LABEL's serving when the product carries serving data (so the
+ * app matches the package in the user's hand), falling back to per-100g
+ * with a grams-eaten portion input in the confirm UI.
  *
  * NOTE: unreachable from the development sandbox (egress-blocked), so
  * the mapping is unit-tested against captured response shapes and the
@@ -29,6 +30,8 @@ interface OffProduct {
   product_name?: string;
   brands?: string;
   code?: string;
+  serving_size?: string; // human label, e.g. "2 tbsp (32 g)"
+  serving_quantity?: number | string; // grams in one serving
   nutriments?: {
     'energy-kcal_100g'?: number;
     proteins_100g?: number;
@@ -37,38 +40,93 @@ interface OffProduct {
     fiber_100g?: number;
     sugars_100g?: number;
     sodium_100g?: number; // grams per 100 g
+    'energy-kcal_serving'?: number;
+    proteins_serving?: number;
+    carbohydrates_serving?: number;
+    fat_serving?: number;
+    fiber_serving?: number;
+    sugars_serving?: number;
+    sodium_serving?: number; // grams per serving
   };
+}
+
+/** A sane finite non-negative number, or undefined. */
+function sane(v: number | string | undefined): number | undefined {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/** Rounded to one decimal for macro grams. */
+function round1(v: number | undefined): number | undefined {
+  return v === undefined ? undefined : Math.round(v * 10) / 10;
 }
 
 /**
  * Maps one OFF product to a FoodItem, or null when it's unusable (no
  * name or no calorie figure — junk entries are common in open data).
+ *
+ * Servings: when the product carries per-serving data (most packaged
+ * foods do), the item is built PER SERVING with the label's own
+ * serving_size text — so what Meridian shows matches the package in the
+ * user's hand. Missing per-serving macro fields are scaled from the
+ * per-100g value via serving_quantity when known. Products without any
+ * serving data stay per-100g (the confirm UI then asks for grams eaten).
+ *
  * Exported for tests.
  */
 export function mapProduct(product: OffProduct): FoodItem | null {
   const name = product.product_name?.trim();
-  const calories = product.nutriments?.['energy-kcal_100g'];
-  if (!name || typeof calories !== 'number' || !Number.isFinite(calories) || calories < 0) {
-    return null;
-  }
+  if (!name) return null;
   const n = product.nutriments ?? {};
-  const grams = (v: number | undefined) =>
-    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v * 10) / 10 : undefined;
+
+  const brand = product.brands?.split(',')[0]?.trim() || undefined;
+  const servingKcal = sane(n['energy-kcal_serving']);
+  const servingQty = sane(product.serving_quantity);
+  const servingLabel = product.serving_size?.trim();
+
+  // Per-serving path — the label's own numbers.
+  if (servingKcal !== undefined) {
+    // Prefer the explicit per-serving field; scale from per-100g when a
+    // field is missing but the serving's gram weight is known.
+    const scaled = (per100: number | undefined): number | undefined =>
+      per100 !== undefined && servingQty !== undefined
+        ? (per100 * servingQty) / 100
+        : undefined;
+    const pick = (perServing: number | undefined, per100: number | undefined) =>
+      round1(perServing !== undefined ? perServing : scaled(per100));
+
+    const sodiumG = pick(sane(n.sodium_serving), sane(n.sodium_100g));
+    return {
+      name,
+      brand,
+      servingDescription:
+        servingLabel || (servingQty !== undefined ? `${servingQty} g` : '1 serving'),
+      caloriesPerServing: Math.round(servingKcal),
+      proteinG: pick(sane(n.proteins_serving), sane(n.proteins_100g)),
+      carbsG: pick(sane(n.carbohydrates_serving), sane(n.carbohydrates_100g)),
+      fatsG: pick(sane(n.fat_serving), sane(n.fat_100g)),
+      fiberG: pick(sane(n.fiber_serving), sane(n.fiber_100g)),
+      sugarG: pick(sane(n.sugars_serving), sane(n.sugars_100g)),
+      sodiumMg: sodiumG !== undefined ? Math.round(sodiumG * 1000) : undefined,
+      barcode: product.code,
+    };
+  }
+
+  // Per-100g path — unchanged behavior for products without serving data.
+  const calories = sane(n['energy-kcal_100g']);
+  if (calories === undefined) return null;
+  const sodium100 = sane(n.sodium_100g);
   return {
     name,
-    brand: product.brands?.split(',')[0]?.trim() || undefined,
+    brand,
     servingDescription: '100 g',
     caloriesPerServing: Math.round(calories),
-    proteinG: grams(n.proteins_100g),
-    carbsG: grams(n.carbohydrates_100g),
-    fatsG: grams(n.fat_100g),
-    fiberG: grams(n.fiber_100g),
-    sugarG: grams(n.sugars_100g),
-    // OFF stores sodium in g/100g; the schema wants mg.
-    sodiumMg:
-      typeof n.sodium_100g === 'number' && Number.isFinite(n.sodium_100g) && n.sodium_100g >= 0
-        ? Math.round(n.sodium_100g * 1000)
-        : undefined,
+    proteinG: round1(sane(n.proteins_100g)),
+    carbsG: round1(sane(n.carbohydrates_100g)),
+    fatsG: round1(sane(n.fat_100g)),
+    fiberG: round1(sane(n.fiber_100g)),
+    sugarG: round1(sane(n.sugars_100g)),
+    sodiumMg: sodium100 !== undefined ? Math.round(sodium100 * 1000) : undefined,
     barcode: product.code,
   };
 }
@@ -79,7 +137,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
   if (!trimmed) return [];
   const url =
     `${SEARCH_URL}?search_terms=${encodeURIComponent(trimmed)}` +
-    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,nutriments';
+    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,serving_size,serving_quantity,nutriments';
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -97,7 +155,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
 
 /** Barcode lookup — one product or null when unknown. */
 export async function lookupBarcode(barcode: string): Promise<FoodItem | null> {
-  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,nutriments`;
+  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,serving_size,serving_quantity,nutriments`;
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
