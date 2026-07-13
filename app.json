@@ -61,6 +61,13 @@
             "backgroundColor": "#080E1A"
           }
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "meridian",
+          "project": "meridian-app"
+        }
       ]
     ],
     "experiments": {

@@ -7,6 +7,7 @@ import {
   PlayfairDisplay_500Medium,
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
+import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +16,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { colors } from '@/src/theme/theme';
+
+// Crash reporting — tester builds set the DSN (not a secret); local dev
+// without one runs Sentry-free. No PII beyond what errors carry.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({ dsn: SENTRY_DSN, sendDefaultPii: false });
+}
 
 export const unstable_settings = {
   // The tab group is the app's anchor; /onboarding sits outside it.
@@ -26,7 +34,7 @@ export const unstable_settings = {
  * declares the top-level routes — the main tab group, the scripted
  * onboarding (first-run), and the pushed character/food screens.
  */
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -68,3 +76,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Sentry's wrapper adds navigation breadcrumbs and error boundaries when
+// enabled; without a DSN the plain component ships.
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;
