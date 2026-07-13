@@ -63,7 +63,19 @@ function buildUserContext(userName: string): string {
   }
   teamLines.push('Kael (operations consultant) and Sera (behavioral consultant) are on every team.');
 
-  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.\n\nWHAT EXISTS SO FAR: No device data (sleep, steps, heart rate) is connected yet, and no training programme has been built yet. If asked about those, say so plainly — never invent numbers or schedule details that don't exist.`;
+  // Whether a workout exists changes what's honest to say. Once the
+  // trainer has generated a plan (or the user has trained), the shared
+  // context below carries it — telling the character "no programme
+  // exists" here would contradict that and make them deny their own work.
+  const { programmeState } = useUserDataStore.getState();
+  const hasPlan = programmeState.currentPlan !== undefined;
+  const hasHistory = (programmeState.recentSessions?.length ?? 0) > 0;
+  const trainingClause =
+    hasPlan || hasHistory
+      ? "Today's workout and recent training appear in the shared context below — those are real; treat them as things you already know and reference them naturally."
+      : 'No training programme has been built yet.';
+
+  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.\n\nWHAT EXISTS SO FAR: No device data (sleep, steps, heart rate) is connected yet. ${trainingClause} If asked about device data that isn't connected, say so plainly — never invent numbers or schedule details that don't exist.`;
 }
 
 /** A message in the shape the API expects. */

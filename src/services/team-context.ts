@@ -123,10 +123,60 @@ function shareableFacts(data: SharedUserData): string[] {
     lines.push(`most recent weight around ${data.dailySignals.currentWeight} kg`);
   }
 
+  // Today's plan (what the trainer prescribed) comes before the history of
+  // completed sessions — it's the most current thing the team should know,
+  // and it's what lets the trainer answer "why these exercises?" instead of
+  // denying a plan they just built.
+  const planLine = describeTodaysPlan(data.programmeState);
+  if (planLine) lines.push(planLine);
+
   const trainingLine = describeRecentTraining(data.programmeState.recentSessions);
   if (trainingLine) lines.push(trainingLine);
 
   return lines;
+}
+
+/** Today's local date (YYYY-MM-DD) for comparing against a plan's forDate. */
+function todayISO(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Exercise names to name explicitly before summarizing the rest as a count. */
+const PLAN_EXERCISES_NAMED = 8;
+
+/**
+ * Describes today's workout plan — the prescription that exists before
+ * any set is logged. Attributed to the trainer by name so whoever reads
+ * it (the trainer included) knows whose work it is. Empty string when
+ * there's no plan for today.
+ */
+function describeTodaysPlan(programme: SharedUserData['programmeState']): string {
+  const plan = programme.currentPlan;
+  if (!plan || plan.forDate !== todayISO()) return '';
+
+  const trainer = getCharacter(plan.createdBy).name;
+
+  if (plan.exercises.length === 0) {
+    return `${trainer} set today as a rest day (${plan.intent})`;
+  }
+
+  const named = plan.exercises.slice(0, PLAN_EXERCISES_NAMED).map((e) => e.name);
+  const extra = plan.exercises.length - named.length;
+  const nameList = extra > 0 ? `${named.join(', ')}, +${extra} more` : named.join(', ');
+
+  // Reflect where the user is in it — planned, mid-session, or done.
+  const session = programme.currentSession;
+  let status = 'not started yet';
+  if (session && session.status === 'in-progress') {
+    const done = session.logs.filter((l) => l.status === 'completed').length;
+    status = `underway, ${done} of ${plan.exercises.length} done`;
+  }
+
+  return `today's session, built by ${trainer}: ${plan.focusArea} — ${nameList} (${plan.exercises.length} exercises, ~${plan.estimatedMinutes} min), ${status}`;
 }
 
 /** How many past sessions surface in the team-context digest. */

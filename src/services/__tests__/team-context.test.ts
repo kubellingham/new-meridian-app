@@ -10,8 +10,15 @@ import {
   EMPTY_SHARED_USER_DATA,
   type SharedUserData,
   type TeamEvent,
+  type WorkoutPlan,
   type WorkoutSession,
 } from '@/src/types/user-data';
+
+/** Today's local date, matching team-context's own todayISO(). */
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 /** Builds a chat message quickly. */
 function msg(role: 'user' | 'assistant', text: string, error?: boolean): ChatMessage {
@@ -303,5 +310,98 @@ describe('buildTeamContext recent-training line', () => {
     );
     expect(block).toContain('178 cm tall');
     expect(block).not.toContain('recent training');
+  });
+});
+
+describe('buildTeamContext today plan line', () => {
+  function plan(overrides: Partial<WorkoutPlan> = {}): WorkoutPlan {
+    return {
+      id: overrides.id ?? 'plan-x',
+      createdAt: overrides.createdAt ?? Date.now(),
+      forDate: overrides.forDate ?? todayISO(),
+      createdBy: overrides.createdBy ?? 'marco',
+      focusArea: overrides.focusArea ?? 'Full body conditioning',
+      estimatedMinutes: overrides.estimatedMinutes ?? 35,
+      intent: overrides.intent ?? 'Building the habit before the programme.',
+      exercises:
+        overrides.exercises ??
+        [
+          { id: 'e1', name: 'March in Place', category: 'warm-up', targetSets: 1, targetReps: '3 min' },
+          { id: 'e2', name: 'Bodyweight Squat', category: 'conditioning', targetSets: 3, targetReps: '10-12' },
+        ],
+    };
+  }
+
+  function withPlan(p: WorkoutPlan, session?: SharedUserData['programmeState']['currentSession']): SharedUserData {
+    return {
+      ...EMPTY_SHARED_USER_DATA,
+      programmeState: { currentPlan: p, currentSession: session },
+    };
+  }
+
+  it("surfaces today's plan attributed to the trainer, before it's done", () => {
+    const block = buildTeamContext('marco', {}, 'Innocent', withPlan(plan()));
+    expect(block).toContain("today's session, built by Marco");
+    expect(block).toContain('Full body conditioning');
+    expect(block).toContain('March in Place');
+    expect(block).toContain('not started yet');
+  });
+
+  it('lets the NS and consultants see the plan too', () => {
+    const block = buildTeamContext('nneka', {}, 'Innocent', withPlan(plan()));
+    expect(block).toContain('Full body conditioning');
+    const kaelBlock = buildTeamContext('kael', {}, 'Innocent', withPlan(plan()));
+    expect(kaelBlock).toContain('built by Marco');
+  });
+
+  it('reflects an in-progress session status', () => {
+    const p = plan();
+    const session: NonNullable<SharedUserData['programmeState']['currentSession']> = {
+      id: 'sess-x',
+      planId: p.id,
+      startedAt: Date.now(),
+      status: 'in-progress',
+      logs: [
+        { plannedExerciseId: 'e1', name: 'March in Place', status: 'completed', sets: [] },
+        { plannedExerciseId: 'e2', name: 'Bodyweight Squat', status: 'pending', sets: [] },
+      ],
+    };
+    const block = buildTeamContext('marco', {}, 'Innocent', withPlan(p, session));
+    expect(block).toContain('underway, 1 of 2 done');
+  });
+
+  it('describes a rest day in the trainer voice', () => {
+    const block = buildTeamContext(
+      'marco',
+      {},
+      'Innocent',
+      withPlan(plan({ exercises: [], intent: 'You earned a day off — take it.' })),
+    );
+    expect(block).toContain('Marco set today as a rest day');
+    expect(block).toContain('take it');
+  });
+
+  it('ignores a stale plan from a previous day', () => {
+    const block = buildTeamContext(
+      'marco',
+      {},
+      'Innocent',
+      withPlan(plan({ forDate: '2000-01-01' })),
+    );
+    expect(block).not.toContain("today's session");
+  });
+
+  it('caps the named exercises and counts the rest', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `e${i}`,
+      name: `Move ${i}`,
+      category: 'conditioning' as const,
+      targetSets: 1,
+      targetReps: '10',
+    }));
+    const block = buildTeamContext('marco', {}, 'Innocent', withPlan(plan({ exercises: many })));
+    expect(block).toContain('Move 0');
+    expect(block).toContain('+4 more');
+    expect(block).toContain('12 exercises');
   });
 });
