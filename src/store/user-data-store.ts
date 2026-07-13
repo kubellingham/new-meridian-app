@@ -7,6 +7,7 @@ import {
   EMPTY_SHARED_USER_DATA,
   type DailySignals,
   type ExerciseLog,
+  type LoggedFood,
   type NutritionState,
   type PatternFlag,
   type ProgrammeState,
@@ -21,6 +22,24 @@ import {
 
 /** Cap on how many past sessions we keep in memory (older ones drop out). */
 const RECENT_SESSIONS_MAX = 10;
+
+/** Rolling food-log window — whichever cap hits first, oldest entries go. */
+const FOOD_LOG_MAX_ENTRIES = 300;
+const FOOD_LOG_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // ~30 days
+
+/** How many entries count toward the given local date. */
+function countForDate(log: LoggedFood[], forDate: string): number {
+  return log.filter((e) => e.forDate === forDate).length;
+}
+
+/** Drops entries beyond the rolling window, keeping newest-last order. */
+function pruneFoodLog(log: LoggedFood[]): LoggedFood[] {
+  const cutoff = Date.now() - FOOD_LOG_MAX_AGE_MS;
+  const recent = log.filter((e) => e.loggedAt >= cutoff);
+  return recent.length > FOOD_LOG_MAX_ENTRIES
+    ? recent.slice(recent.length - FOOD_LOG_MAX_ENTRIES)
+    : recent;
+}
 
 /**
  * The shared user database — Collaboration Model §2 in code form. Every
@@ -86,6 +105,15 @@ interface UserDataState extends SharedUserData {
    * workoutCompletedToday (an abandoned session is not a completion).
    */
   abandonSession: () => void;
+  /**
+   * NS-owned food-log actions. Append an eaten entry (log is pruned to a
+   * rolling window), edit one (servings/meal/note fixes), or remove one.
+   * Also bumps dailySignals.mealsLoggedToday so the ambient counter the
+   * consultants already read stays truthful.
+   */
+  logFood: (entry: LoggedFood) => void;
+  updateFood: (id: string, patch: Partial<LoggedFood>) => void;
+  removeFood: (id: string) => void;
   /** Wipes everything — dev/reset action. */
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -231,6 +259,35 @@ export const useUserDataStore = create<UserDataState>()(
               currentSession: undefined,
               recentSessions: recent,
             },
+          };
+        }),
+      logFood: (entry) =>
+        set((state) => {
+          const foodLog = pruneFoodLog([...(state.foodLog ?? []), entry]);
+          return {
+            foodLog,
+            dailySignals: {
+              ...state.dailySignals,
+              mealsLoggedToday: countForDate(foodLog, entry.forDate),
+            },
+          };
+        }),
+      updateFood: (id, patch) =>
+        set((state) => ({
+          foodLog: (state.foodLog ?? []).map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        })),
+      removeFood: (id) =>
+        set((state) => {
+          const removed = (state.foodLog ?? []).find((e) => e.id === id);
+          const foodLog = (state.foodLog ?? []).filter((e) => e.id !== id);
+          return {
+            foodLog,
+            dailySignals: removed
+              ? {
+                  ...state.dailySignals,
+                  mealsLoggedToday: countForDate(foodLog, removed.forDate),
+                }
+              : state.dailySignals,
           };
         }),
       reset: () => set({ ...EMPTY_SHARED_USER_DATA }),

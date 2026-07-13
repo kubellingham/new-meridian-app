@@ -211,3 +211,50 @@ describe('workout session lifecycle', () => {
     expect(s.dailySignals.workoutCompletedToday).toBeUndefined();
   });
 });
+
+describe('food log actions', () => {
+  const food = (id: string, forDate = '2026-07-13') => ({
+    id,
+    loggedAt: Date.now(),
+    forDate,
+    meal: 'lunch' as const,
+    source: 'manual' as const,
+    servings: 1,
+    item: { name: 'Jollof rice', caloriesPerServing: 400 },
+  });
+
+  it('logFood appends and bumps mealsLoggedToday for that date', () => {
+    const store = useUserDataStore.getState();
+    store.logFood(food('a'));
+    store.logFood(food('b'));
+    const s = useUserDataStore.getState();
+    expect(s.foodLog.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(s.dailySignals.mealsLoggedToday).toBe(2);
+  });
+
+  it('updateFood patches one entry', () => {
+    const store = useUserDataStore.getState();
+    store.logFood(food('a'));
+    store.updateFood('a', { servings: 2, meal: 'dinner' });
+    const e = useUserDataStore.getState().foodLog.find((x) => x.id === 'a')!;
+    expect(e.servings).toBe(2);
+    expect(e.meal).toBe('dinner');
+  });
+
+  it('removeFood deletes and recounts the day', () => {
+    const store = useUserDataStore.getState();
+    store.logFood(food('a'));
+    store.logFood(food('b'));
+    store.removeFood('a');
+    const s = useUserDataStore.getState();
+    expect(s.foodLog.map((e) => e.id)).toEqual(['b']);
+    expect(s.dailySignals.mealsLoggedToday).toBe(1);
+  });
+
+  it('reset clears the food log', () => {
+    const store = useUserDataStore.getState();
+    store.logFood(food('a'));
+    store.reset();
+    expect(useUserDataStore.getState().foodLog).toEqual([]);
+  });
+});

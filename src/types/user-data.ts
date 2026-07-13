@@ -167,6 +167,47 @@ export interface ExerciseLog {
   note?: string;
 }
 
+/**
+ * NS-owned food-logging types. A `FoodItem` is the nutritional identity
+ * of a food (per serving); a `LoggedFood` is one instance of eating it —
+ * when, which meal, how many servings, and where the data came from.
+ * Separate shapes so a database/barcode item can be logged repeatedly
+ * without duplicating its nutrition facts.
+ */
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+/** How an entry got into the log — shapes trust and edit affordances. */
+export type FoodSource = 'manual' | 'chat' | 'photo' | 'barcode' | 'database';
+
+/** The nutritional identity of one food, per serving. */
+export interface FoodItem {
+  name: string;
+  brand?: string;
+  servingDescription?: string; // "1 plate", "100 g", "1 medium"
+  caloriesPerServing: number;
+  proteinG?: number;
+  carbsG?: number;
+  fatsG?: number;
+  fiberG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
+  barcode?: string; // set when it came from a scan
+}
+
+/** One eaten instance of a food, counted toward a day and a meal. */
+export interface LoggedFood {
+  id: string;
+  loggedAt: number; // epoch ms
+  forDate: string; // ISO local date it counts toward (YYYY-MM-DD)
+  meal: MealSlot;
+  source: FoodSource;
+  item: FoodItem;
+  servings: number; // multiplier of the item's per-serving values
+  note?: string;
+  photoUri?: string; // local cache uri for photo logs
+}
+
 /** A single workout session — what the user did today. */
 export interface WorkoutSession {
   id: string;
@@ -248,6 +289,11 @@ export interface SharedUserData {
   patternFlags: PatternFlag[];
   /** Append-only log of domain-changing decisions across the team. */
   events: TeamEvent[];
+  /**
+   * Everything the user has eaten, newest last. Pruned to a rolling
+   * window (see the store) so AsyncStorage stays bounded.
+   */
+  foodLog: LoggedFood[];
 }
 
 /** Default value for a brand-new account — every category present but empty. */
@@ -259,4 +305,5 @@ export const EMPTY_SHARED_USER_DATA: SharedUserData = {
   sessionFeedback: {},
   patternFlags: [],
   events: [],
+  foodLog: [],
 };
