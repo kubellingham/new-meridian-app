@@ -470,4 +470,23 @@ describe('buildTeamContext today intake line', () => {
     expect(block).toContain('food 0');
     expect(block).toContain('+2 more');
   });
+
+  it('reports water against the hydration goal when logged', () => {
+    const data: SharedUserData = {
+      ...EMPTY_SHARED_USER_DATA,
+      dailySignals: { waterMl: 1250 },
+    };
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('water so far today: 1.3 of 2 L');
+  });
+
+  it('omits the water line at zero', () => {
+    const data: SharedUserData = {
+      ...EMPTY_SHARED_USER_DATA,
+      dailySignals: { waterMl: 0 },
+      userProfile: { height: 178 },
+    };
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).not.toContain('water so far');
+  });
 });

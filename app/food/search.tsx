@@ -13,11 +13,16 @@ import {
 import { FoodConfirmList } from '@/src/components/diet';
 import { AppText, Card, Screen } from '@/src/components/ui';
 import { searchFoods } from '@/src/services/food-database';
-import { makeFoodLogId, MEAL_SLOTS, todayLocalISODate } from '@/src/services/food-log';
+import {
+  makeFoodLogId,
+  MEAL_SLOTS,
+  recentFoods,
+  todayLocalISODate,
+} from '@/src/services/food-log';
 import type { ParsedFood } from '@/src/services/food-logging';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
-import type { FoodItem, MealSlot } from '@/src/types/user-data';
+import type { FoodItem, FoodSource, MealSlot } from '@/src/types/user-data';
 
 function asMealSlot(value: string | undefined): MealSlot {
   return (MEAL_SLOTS as readonly string[]).includes(value ?? '')
@@ -33,12 +38,17 @@ function asMealSlot(value: string | undefined): MealSlot {
 export default function FoodSearchScreen() {
   const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
   const logFood = useUserDataStore((s) => s.logFood);
+  const foodLog = useUserDataStore((s) => s.foodLog);
 
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<FoodItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<FoodItem | null>(null);
+  const [pickedServings, setPickedServings] = useState(1);
+  const [pickedSource, setPickedSource] = useState<FoodSource>('database');
+
+  const recents = recentFoods(foodLog ?? []);
 
   async function handleSearch() {
     const q = query.trim();
@@ -63,7 +73,7 @@ export default function FoodSearchScreen() {
         loggedAt: Date.now(),
         forDate: todayLocalISODate(),
         meal: parsed.meal ?? asMealSlot(mealParam),
-        source: 'database',
+        source: pickedSource,
         servings: parsed.servings,
         item: parsed.item,
       });
@@ -128,13 +138,12 @@ export default function FoodSearchScreen() {
 
         {picked ? (
           <FoodConfirmList
-            foods={[{ item: picked, servings: 1 }]}
+            foods={[{ item: picked, servings: pickedServings }]}
             defaultMeal={asMealSlot(mealParam)}
             onConfirm={handleConfirm}
           />
-        ) : (
-          results !== null &&
-          (results.length === 0 ? (
+        ) : results !== null ? (
+          results.length === 0 ? (
             <AppText variant="caption" color={colors.muted}>
               Nothing found for that. Try a simpler term, or add it manually.
             </AppText>
@@ -142,21 +151,53 @@ export default function FoodSearchScreen() {
             results.map((item, i) => (
               <Pressable
                 key={`${item.barcode ?? item.name}-${i}`}
-                onPress={() => setPicked(item)}
+                onPress={() => {
+                  setPickedSource('database');
+                  setPickedServings(1);
+                  setPicked(item);
+                }}
                 accessibilityRole="button"
                 testID={`search-result-${i}`}
               >
                 <Card style={styles.resultCard}>
                   <AppText variant="body">{item.name}</AppText>
                   <AppText variant="caption" color={colors.muted}>
-                    {[item.brand, `${item.caloriesPerServing} kcal / 100 g`]
+                    {[item.brand, `${item.caloriesPerServing} kcal / ${item.servingDescription ?? 'serving'}`]
                       .filter(Boolean)
                       .join(' · ')}
                   </AppText>
                 </Card>
               </Pressable>
             ))
-          ))
+          )
+        ) : (
+          recents.length > 0 && (
+            <>
+              <AppText variant="label" color={colors.muted}>
+                Recent
+              </AppText>
+              {recents.map((recent, i) => (
+                <Pressable
+                  key={`recent-${recent.item.name}-${i}`}
+                  onPress={() => {
+                    setPickedSource('manual');
+                    setPickedServings(recent.servings);
+                    setPicked(recent.item);
+                  }}
+                  accessibilityRole="button"
+                  testID={`recent-${i}`}
+                >
+                  <Card style={styles.resultCard}>
+                    <AppText variant="body">{recent.item.name}</AppText>
+                    <AppText variant="caption" color={colors.muted}>
+                      {Math.round(recent.item.caloriesPerServing * recent.servings)} kcal
+                      last time
+                    </AppText>
+                  </Card>
+                </Pressable>
+              ))}
+            </>
+          )
         )}
       </ScrollView>
     </Screen>

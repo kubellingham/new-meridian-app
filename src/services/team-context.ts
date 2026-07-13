@@ -130,6 +130,12 @@ function shareableFacts(data: SharedUserData): string[] {
   const intakeLine = describeTodaysIntake(data);
   if (intakeLine) lines.push(intakeLine);
 
+  if (data.dailySignals.waterMl !== undefined && data.dailySignals.waterMl > 0) {
+    const goal = data.nutritionState.hydrationBaselineMl ?? 2000;
+    const toL = (ml: number) => Math.round(ml / 100) / 10;
+    lines.push(`water so far today: ${toL(data.dailySignals.waterMl)} of ${toL(goal)} L`);
+  }
+
   // Today's plan (what the trainer prescribed) comes before the history of
   // completed sessions — it's the most current thing the team should know,
   // and it's what lets the trainer answer "why these exercises?" instead of

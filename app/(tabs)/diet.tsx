@@ -8,6 +8,8 @@ import {
   LogMethodSheet,
   MacroBars,
   MealSection,
+  WaterCard,
+  WeightCard,
   type LogMethod,
 } from '@/src/components/diet';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
@@ -37,8 +39,11 @@ export default function DietScreen() {
   const nutritionState = useUserDataStore((s) => s.nutritionState);
   const userProfile = useUserDataStore((s) => s.userProfile);
   const currentWeight = useUserDataStore((s) => s.dailySignals.currentWeight);
+  const waterMl = useUserDataStore((s) => s.dailySignals.waterMl);
   const hasHydrated = useUserDataStore((s) => s.hasHydrated);
   const updateNutritionState = useUserDataStore((s) => s.updateNutritionState);
+  const updateDailySignals = useUserDataStore((s) => s.updateDailySignals);
+  const addWater = useUserDataStore((s) => s.addWater);
   const updateFood = useUserDataStore((s) => s.updateFood);
   const removeFood = useUserDataStore((s) => s.removeFood);
 
@@ -104,6 +109,17 @@ export default function DietScreen() {
     setSheetOpen(true);
   }
 
+  /**
+   * Logs a new weight and silently recomputes the auto targets around it —
+   * the deficit tracks the body it's for. (A manually-tuned target would
+   * also be replaced here; NS-owned target setting arrives later.)
+   */
+  function handleLogWeight(weightKg: number) {
+    updateDailySignals({ currentWeight: weightKg });
+    const computed = computeTargets(userProfile, weightKg);
+    if (computed) updateNutritionState(computed);
+  }
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -133,6 +149,18 @@ export default function DietScreen() {
         )}
 
         <MacroBars totals={totals} targets={nutritionState.macroTargets} />
+
+        <WaterCard
+          waterMl={waterMl ?? 0}
+          goalMl={nutritionState.hydrationBaselineMl ?? 2000}
+          onAdd={addWater}
+        />
+
+        <WeightCard
+          currentWeight={currentWeight}
+          goalWeight={userProfile.goalWeight}
+          onLog={handleLogWeight}
+        />
 
         <Button label="Log food" onPress={() => openSheet(null)} testID="diet-log-food" />
 

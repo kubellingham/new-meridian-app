@@ -7,6 +7,7 @@ import {
   entriesForDate,
   entryCalories,
   groupByMeal,
+  recentFoods,
   remaining,
 } from '../food-log';
 import type { LoggedFood } from '@/src/types/user-data';
@@ -103,5 +104,32 @@ describe('remaining', () => {
 describe('entryCalories', () => {
   it('is per-serving times servings', () => {
     expect(entryCalories(entry({ servings: 2 }))).toBe(800);
+  });
+});
+
+describe('recentFoods', () => {
+  it('dedupes by name (case-insensitive), newest first, with last servings', () => {
+    const log = [
+      entry({ id: 'a', loggedAt: 1, servings: 1 }), // Jollof rice
+      entry({ id: 'b', loggedAt: 2, item: { name: 'Eggs', caloriesPerServing: 150 }, servings: 2 }),
+      entry({ id: 'c', loggedAt: 3, item: { name: 'JOLLOF RICE', caloriesPerServing: 400 }, servings: 1.5 }),
+    ];
+    const recents = recentFoods(log);
+    expect(recents).toHaveLength(2);
+    expect(recents[0].item.name).toBe('JOLLOF RICE'); // most recent wins
+    expect(recents[0].servings).toBe(1.5);
+    expect(recents[1].item.name).toBe('Eggs');
+  });
+
+  it('caps at ten distinct foods', () => {
+    const log = Array.from({ length: 15 }, (_, i) =>
+      entry({ id: `x${i}`, loggedAt: i, item: { name: `Food ${i}`, caloriesPerServing: 100 } }),
+    );
+    expect(recentFoods(log)).toHaveLength(10);
+    expect(recentFoods(log)[0].item.name).toBe('Food 14');
+  });
+
+  it('returns empty for an empty log', () => {
+    expect(recentFoods([])).toEqual([]);
   });
 });

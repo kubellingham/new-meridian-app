@@ -114,6 +114,8 @@ interface UserDataState extends SharedUserData {
   logFood: (entry: LoggedFood) => void;
   updateFood: (id: string, patch: Partial<LoggedFood>) => void;
   removeFood: (id: string) => void;
+  /** Adjusts today's water by ±ml, clamped at zero. */
+  addWater: (ml: number) => void;
   /** Wipes everything — dev/reset action. */
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -290,6 +292,13 @@ export const useUserDataStore = create<UserDataState>()(
               : state.dailySignals,
           };
         }),
+      addWater: (ml) =>
+        set((state) => ({
+          dailySignals: {
+            ...state.dailySignals,
+            waterMl: Math.max(0, (state.dailySignals.waterMl ?? 0) + ml),
+          },
+        })),
       reset: () => set({ ...EMPTY_SHARED_USER_DATA }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),

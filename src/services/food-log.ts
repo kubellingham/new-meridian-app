@@ -102,6 +102,32 @@ export function remaining(totals: DailyTotals, targets: NutritionState): Remaini
   };
 }
 
+/** How many distinct foods the recents strip shows. */
+const RECENT_FOODS_MAX = 10;
+
+/**
+ * Distinct recently-logged foods, newest first — the fast-relog path.
+ * Deduped by lowercased name (day two of tracking is mostly repeat
+ * meals); each result carries the most recent serving count so a re-log
+ * defaults to what the user actually had last time.
+ */
+export function recentFoods(log: readonly LoggedFood[]): Array<{
+  item: LoggedFood['item'];
+  servings: number;
+}> {
+  const seen = new Set<string>();
+  const recents: Array<{ item: LoggedFood['item']; servings: number }> = [];
+  // Newest last in storage → walk backwards.
+  for (let i = log.length - 1; i >= 0 && recents.length < RECENT_FOODS_MAX; i--) {
+    const entry = log[i];
+    const key = entry.item.name.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recents.push({ item: entry.item, servings: entry.servings });
+  }
+  return recents;
+}
+
 /** Small id helper for log entries — same shape as the other id makers. */
 export function makeFoodLogId(): string {
   return `food-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
