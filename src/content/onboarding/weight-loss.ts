@@ -133,6 +133,72 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     ],
     commit: ["Yes! Let's go. Come find me in the Training Hub — we've got things to do."],
   },
+  ananya: {
+    intro: [
+      'Hello, {NAME}.',
+      "I'm Ananya. I competed in physique sport for eight years, and I spent all of them collecting the questions nobody would answer properly — why this rep range, why this rest, why does everyone promise six weeks when the truth is seasons. So I studied the science and answered them myself. That's what you get with me: hypertrophy the way it actually works.",
+      "How I work — muscle is built in the quiet weeks. The unglamorous middle where the numbers creep up and the mirror says nothing yet. My job is keeping you loading the bar through that silence, and explaining the why in one clean line whenever you want it.",
+      "And one promise up front: no myths survive here. Accha? Take your time. Meet the others. The right coach is the one whose pace you trust.",
+    ],
+    commit: [
+      "Good choice, {NAME}. We'll build this properly.",
+      "I'll see you in the Training Hub. Bring your patience — I'll bring everything else.",
+    ],
+  },
+  dmitri: {
+    intro: [
+      'Hello, {NAME}.',
+      "Dmitri. Thirty years under the bar — a basement gym in Prague, concrete floor, plates that didn't match. I've coached first-timers and national lifters, and the method never changed. Squat, press, pull, hinge. Heavy enough to matter. Light enough to repeat. For years.",
+      "How I work: few words, exact ones. I will remember every number you ever lift. When I say a thing is good, it is good. The bar teaches patience, and muscle is what patience looks like on a body.",
+      'Meet the others. Choose with your gut. It usually knows.',
+    ],
+    commit: ['Dobře. We start simple, and we do not stop.', 'The Training Hub. I will be there.'],
+  },
+  kofi: {
+    intro: [
+      'Hey, {NAME}!',
+      "I'm Kofi, from Accra. I was a sprinter — 200 metres, national programme, honest about my ceiling — and what I kept from that life is the athlete's secret: strong is a skill. You practice it. You don't suffer it.",
+      "So with me, building muscle looks like sport. Move well first, then move heavy, then move heavy fast. I will ask for one more set and mean it — because I respect you enough to believe you have it. And when a lift moves well? We celebrate. Loudly. That part is not optional.",
+      'Go meet the others, chale. Pick whoever makes you want to start today.',
+    ],
+    commit: [
+      "YES. Good decision, {NAME}. We're going to build something strong.",
+      'Training Hub — come find me. Bring intent.',
+    ],
+  },
+  amara: {
+    intro: [
+      'Hello, {NAME}. Come, sit.',
+      "I'm Amara. Before coaching, I was a physiotherapist in Nairobi — I met people on the worst day of their bodies. The put-out back. The knee that gave. And almost all of it, almost every time, was preventable. So I left the clinic and started building people who never need one.",
+      "How I work: I train you for the life outside the gym. The stairs, the shopping, the floor you can get up from at seventy without a plan. Strength, a heart that climbs hills without drama, and a body that keeps its promises. Pole pole — slowly, properly.",
+      'Meet the others if you like. Choose the one whose ten-year picture looks like yours.',
+    ],
+    commit: [
+      'Sawa, {NAME}. This is going to be good.',
+      "Find me in the Training Hub. We start where you are, with what you have.",
+    ],
+  },
+  ingrid: {
+    intro: [
+      'Hello, {NAME}.',
+      "Ingrid. I skied to school in winter, raced cross-country through my twenties, and kept the life when the racing ended. What that sport teaches you is the truth about fitness: the engine is built slowly, mostly at easy pace, in all weather.",
+      "How I work: mostly outside, mostly easy, never zero. Walks that count more than they feel like they count. Simple strength twice a week. No drama in either direction — a storm is just weather, a missed week is just a missed week. The plan waits for you.",
+      'Meet the others. Take your time. Deciding well is also training.',
+    ],
+    commit: ['Greit. Settled, {NAME}.', 'The Training Hub, whenever you are ready. Dress for the weather.'],
+  },
+  sam: {
+    intro: [
+      'Hey, {NAME}. Good to meet you.',
+      "I'm Sam — Vancouver, kinesiology degree, decade of coaching people with jobs, kids, commutes, and seventeen browser tabs of guilt about not exercising. Also rec-league everything. My knees sound like a stapler. I still squat.",
+      "Here's my whole thing: nobody fails at fitness because the workout was wrong. They fail because it didn't fit the week. So I build training that fits YOUR week — the real one, not the fantasy one. Ten honest minutes beats sixty imaginary ones, every time.",
+      "Meet the others, no pressure. Pick whoever you'd actually text back.",
+    ],
+    commit: [
+      "Nice. Okay, {NAME} — let's make this easy to keep.",
+      "Training Hub when you're ready. First job: figuring out your Tuesday.",
+    ],
+  },
 
   // — Nutrition specialists —
   nneka: {

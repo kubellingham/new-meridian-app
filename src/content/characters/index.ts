@@ -3,31 +3,46 @@
  * Screens and services import from here, never from individual files.
  */
 
+import { amara } from './amara';
+import { ananya } from './ananya';
 import { cassidy } from './cassidy';
+import { dmitri } from './dmitri';
 import { elena } from './elena';
 import { haruki } from './haruki';
+import { ingrid } from './ingrid';
 import { jordan } from './jordan';
 import { kael } from './kael';
 import { kavya } from './kavya';
+import { kofi } from './kofi';
 import { marco } from './marco';
 import { meiLin } from './mei-lin';
 import { nneka } from './nneka';
+import { sam } from './sam';
 import { sera } from './sera';
 import { sofia } from './sofia';
 import { tobias } from './tobias';
 import { yasmin } from './yasmin';
-import type { Character, CharacterId, CharacterRole } from './types';
+import type { Character, CharacterId, CharacterRole, TrainerGoal } from './types';
 
 export { buildSystemPrompt, NS_ROLE_BLOCK, SHARED_INSTRUCTION_BLOCK, TEAM_CROSS_REFERENCE_BLOCK } from './shared';
-export type { Character, CharacterId, CharacterRole } from './types';
+export type { Character, CharacterId, CharacterRole, TrainerGoal } from './types';
 
-/** Every V1 character, in presentation order: consultants, trainers, NS. */
+/**
+ * Every V1 character, in presentation order: consultants, trainers
+ * (weight loss, then muscle, then general fitness), NS.
+ */
 export const CHARACTERS: readonly Character[] = [
   kael,
   sera,
   cassidy,
   tobias,
   marco,
+  ananya,
+  dmitri,
+  kofi,
+  amara,
+  ingrid,
+  sam,
   nneka,
   kavya,
   haruki,
@@ -55,8 +70,13 @@ export function getCharactersByRole(role: CharacterRole): Character[] {
 /** The two consultants — both on every user's team (brief §2). */
 export const CONSULTANTS = getCharactersByRole('consultant');
 
-/** The three V1 weight-loss trainers. */
+/** All nine trainers across the three goal paths. */
 export const TRAINERS = getCharactersByRole('trainer');
+
+/** The three trainers recommended for a goal — the onboarding roster. */
+export function getTrainersForGoal(goal: TrainerGoal): Character[] {
+  return TRAINERS.filter((t) => t.goalSpecialty === goal);
+}
 
 /** The eight nutrition specialists, by cultural tradition. */
 export const NUTRITION_SPECIALISTS = getCharactersByRole('nutrition-specialist');

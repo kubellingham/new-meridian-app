@@ -8,6 +8,7 @@ import {
   CHARACTERS,
   CONSULTANTS,
   getCharacter,
+  getTrainersForGoal,
   NUTRITION_SPECIALISTS,
   SHARED_INSTRUCTION_BLOCK,
   TEAM_CROSS_REFERENCE_BLOCK,
@@ -15,14 +16,42 @@ import {
 } from '../index';
 
 describe('character registry completeness', () => {
-  it('contains exactly 13 characters', () => {
-    expect(CHARACTERS).toHaveLength(13);
+  it('contains exactly 19 characters', () => {
+    expect(CHARACTERS).toHaveLength(19);
   });
 
-  it('has 2 consultants, 3 trainers, and 8 nutrition specialists', () => {
+  it('has 2 consultants, 9 trainers, and 8 nutrition specialists', () => {
     expect(CONSULTANTS.map((c) => c.id).sort()).toEqual(['kael', 'sera']);
-    expect(TRAINERS.map((c) => c.id).sort()).toEqual(['cassidy', 'marco', 'tobias']);
+    expect(TRAINERS).toHaveLength(9);
     expect(NUTRITION_SPECIALISTS).toHaveLength(8);
+  });
+
+  it('gives every goal a roster of exactly three trainers', () => {
+    expect(getTrainersForGoal('weight-loss').map((c) => c.id).sort()).toEqual([
+      'cassidy',
+      'marco',
+      'tobias',
+    ]);
+    expect(getTrainersForGoal('build-muscle').map((c) => c.id).sort()).toEqual([
+      'ananya',
+      'dmitri',
+      'kofi',
+    ]);
+    expect(getTrainersForGoal('general-fitness').map((c) => c.id).sort()).toEqual([
+      'amara',
+      'ingrid',
+      'sam',
+    ]);
+  });
+
+  it('gives every trainer (and only trainers) a goal specialty', () => {
+    for (const c of CHARACTERS) {
+      if (c.role === 'trainer') {
+        expect(c.goalSpecialty).toBeDefined();
+      } else {
+        expect(c.goalSpecialty).toBeUndefined();
+      }
+    }
   });
 
   it('has unique ids and names', () => {

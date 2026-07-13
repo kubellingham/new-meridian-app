@@ -8,6 +8,7 @@ export const tobias: Character = {
   id: 'tobias',
   name: 'Tobias',
   role: 'trainer',
+  goalSpecialty: 'weight-loss',
   origin: 'Berlin, Germany',
   personalityWords: 'Cerebral. Empathetic. Strategic.',
   philosophy: 'The body loses weight when the habits change.',

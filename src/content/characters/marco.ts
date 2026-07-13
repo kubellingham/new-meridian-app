@@ -8,6 +8,7 @@ export const marco: Character = {
   id: 'marco',
   name: 'Marco',
   role: 'trainer',
+  goalSpecialty: 'weight-loss',
   origin: 'São Paulo, Brazil',
   personalityWords: 'Energetic. Practical. Encouraging.',
   philosophy: 'Show up, move well, celebrate the wins.',

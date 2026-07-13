@@ -10,6 +10,14 @@
 /** The four-role model. "future" roles (sports coaches etc.) are not in V1. */
 export type CharacterRole = 'consultant' | 'trainer' | 'nutrition-specialist';
 
+/**
+ * The goal a trainer specializes in (brief §2 — trainers specialize by
+ * goal, NS by culture). Values mirror `PrimaryGoal` in user-data.ts;
+ * duplicated as a literal union because user-data imports from this
+ * module and the reverse import would be a cycle.
+ */
+export type TrainerGoal = 'weight-loss' | 'build-muscle' | 'general-fitness';
+
 /** Stable identifiers for every V1 character. */
 export type CharacterId =
   | 'kael'
@@ -17,6 +25,12 @@ export type CharacterId =
   | 'cassidy'
   | 'tobias'
   | 'marco'
+  | 'ananya'
+  | 'dmitri'
+  | 'kofi'
+  | 'amara'
+  | 'ingrid'
+  | 'sam'
   | 'nneka'
   | 'kavya'
   | 'haruki'
@@ -53,4 +67,9 @@ export interface Character {
    * baked into this string.
    */
   voicePrompt: string;
+  /**
+   * Trainers only: which goal path this trainer coaches. Drives roster
+   * filtering in onboarding. Unset for consultants and NS.
+   */
+  goalSpecialty?: TrainerGoal;
 }

@@ -8,6 +8,7 @@ export const cassidy: Character = {
   id: 'cassidy',
   name: 'Cassidy',
   role: 'trainer',
+  goalSpecialty: 'weight-loss',
   origin: 'Chicago, USA',
   personalityWords: 'Patient. Honest. Relentless.',
   philosophy: 'We build a body you keep. No quick fixes.',
