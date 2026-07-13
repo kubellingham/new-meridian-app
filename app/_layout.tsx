@@ -52,6 +52,8 @@ export default function RootLayout() {
         <Stack.Screen name="setup" />
         <Stack.Screen name="sera" />
         <Stack.Screen name="kael" />
+        <Stack.Screen name="trainer" />
+        <Stack.Screen name="workout/[sessionId]" />
       </Stack>
       <StatusBar style="light" />
     </>

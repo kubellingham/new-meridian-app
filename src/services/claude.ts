@@ -15,8 +15,9 @@ import { buildTeamContext } from './team-context';
  * required before any public launch. Prompt caching is deferred (brief §12).
  */
 
-/** Model locked in the brief's tech stack (§12). */
-const MODEL = 'claude-sonnet-4-6';
+/** Model locked in the brief's tech stack (§12). Exported for services that
+ *  need to make their own messages.create calls (e.g. workout generation). */
+export const MODEL = 'claude-sonnet-4-6';
 
 /** Reads the API key from the Expo public env (inlined at build time). */
 function getApiKey(): string | undefined {
@@ -30,7 +31,7 @@ export function isClaudeConfigured(): boolean {
 
 /** Lazily constructed client so a missing key never crashes app start. */
 let client: Anthropic | null = null;
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!client) {
     client = new Anthropic({
       apiKey: getApiKey(),
@@ -86,8 +87,11 @@ function toApiMessages(history: ChatMessage[]): ApiMessage[] {
  * then the shared team memory (what they've told everyone else). The team
  * block reads all threads from the store so no caller has to pass it in;
  * it's omitted entirely when there's nothing shared.
+ *
+ * Exported so other Claude-backed services (e.g. workout generation) get
+ * the same team-aware context without re-implementing the assembly.
  */
-function buildSystem(characterId: CharacterId, userName: string): string {
+export function buildSystem(characterId: CharacterId, userName: string): string {
   const character = getCharacter(characterId);
   const { hasHydrated: _dataHydrated, ...userData } = useUserDataStore.getState();
   const teamContext = buildTeamContext(

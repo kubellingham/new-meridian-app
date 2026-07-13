@@ -42,6 +42,12 @@ export interface ProgrammeState {
   plannedWeeklyVolume?: string; // "3 strength + 2 conditioning"
   scheduledSessions?: string[]; // human-readable summaries
   recentAdjustments?: RecentAdjustment[];
+  /** The workout plan the trainer generated for today, if any. */
+  currentPlan?: WorkoutPlan;
+  /** In-progress or most-recently-abandoned session for today's plan. */
+  currentSession?: WorkoutSession;
+  /** Completed and abandoned sessions, most recent first. Capped at 10. */
+  recentSessions?: WorkoutSession[];
 }
 
 /** §2.3 Owned by the NS, visible to all specialists. */
@@ -103,6 +109,78 @@ export interface RecentAdjustment {
 }
 
 /**
+ * Trainer-owned workout types. The `WorkoutPlan` is what the trainer
+ * prescribes for a day; the `WorkoutSession` is what the user actually
+ * performed. Two distinct shapes because "planned" and "logged" diverge
+ * as soon as the user starts training — different loads, missed sets,
+ * skipped exercises, added ones. Keeping them separate lets the trainer
+ * see prescription vs. reality when generating the next plan.
+ */
+
+export type ExerciseCategory =
+  | 'strength'
+  | 'conditioning'
+  | 'mobility'
+  | 'warm-up'
+  | 'cool-down';
+
+/** One exercise the trainer put on today's plan. */
+export interface PlannedExercise {
+  id: string;
+  name: string; // "Back squat", "45s plank"
+  category: ExerciseCategory;
+  targetSets: number;
+  targetReps: string; // "8-10", "12", "45s" — allows ranges + timed holds
+  targetLoad?: string; // "60 kg", "Bodyweight", "5-7 RPE"
+  restSeconds?: number;
+  cue?: string; // Trainer's coaching cue for the exercise, in their voice
+  note?: string; // Conditional instruction ("skip if lower back tight")
+}
+
+/** Today's prescription from the trainer. Empty `exercises` = rest day. */
+export interface WorkoutPlan {
+  id: string;
+  createdAt: number;
+  forDate: string; // ISO local date, YYYY-MM-DD
+  createdBy: CharacterId;
+  focusArea: string; // "Lower body strength"
+  estimatedMinutes: number;
+  intent: string; // Trainer's one-line reasoning, in voice
+  exercises: PlannedExercise[];
+}
+
+/** One logged set inside an exercise. */
+export interface SetLog {
+  setNumber: number;
+  weight?: number; // kg
+  reps?: number;
+  durationSeconds?: number;
+  note?: string;
+}
+
+/** All logs for one prescribed exercise inside a session. */
+export interface ExerciseLog {
+  plannedExerciseId: string;
+  name: string; // denormalized so history stays readable if the plan is gone
+  status: 'pending' | 'in-progress' | 'completed' | 'skipped';
+  sets: SetLog[];
+  note?: string;
+}
+
+/** A single workout session — what the user did today. */
+export interface WorkoutSession {
+  id: string;
+  planId: string;
+  startedAt: number;
+  completedAt?: number;
+  abandonedAt?: number;
+  status: 'in-progress' | 'completed' | 'abandoned';
+  logs: ExerciseLog[];
+  sessionFeeling?: 'strong' | 'okay' | 'flat' | 'rough';
+  sessionNote?: string;
+}
+
+/**
  * The kinds of decisions that ripple across the team — Collaboration Model
  * §3.2. New kinds get added here as new emitters land; the union stays the
  * source of truth so downstream code (team-context, morning brief) can
@@ -129,7 +207,10 @@ export type EventKind =
   | 'emotional-flag'
   | 'plateau-detected'
   | 'goal-milestone'
-  | 'morning-brief';
+  | 'morning-brief'
+  | 'workout-plan-created'
+  | 'workout-completed'
+  | 'workout-abandoned';
 
 /**
  * A single event: one specialist noted a domain-changing decision, and

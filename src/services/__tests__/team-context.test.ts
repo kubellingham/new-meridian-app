@@ -10,6 +10,7 @@ import {
   EMPTY_SHARED_USER_DATA,
   type SharedUserData,
   type TeamEvent,
+  type WorkoutSession,
 } from '@/src/types/user-data';
 
 /** Builds a chat message quickly. */
@@ -236,5 +237,71 @@ describe('buildTeamContext events block', () => {
     expect(factsIndex).toBeGreaterThan(-1);
     expect(eventsIndex).toBeGreaterThan(factsIndex);
     expect(conversationIndex).toBeGreaterThan(eventsIndex);
+  });
+});
+
+describe('buildTeamContext recent-training line', () => {
+  /** Compact session builder for these tests. */
+  function session(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
+    const startedAt = overrides.startedAt ?? Date.now() - 2 * 24 * 60 * 60 * 1000;
+    return {
+      id: overrides.id ?? 'sess-a',
+      planId: overrides.planId ?? 'plan-a',
+      startedAt,
+      completedAt: overrides.completedAt ?? startedAt + 30 * 60 * 1000,
+      status: overrides.status ?? 'completed',
+      logs: overrides.logs ?? [
+        { plannedExerciseId: 'ex-1', name: 'Back squat', status: 'completed', sets: [] },
+      ],
+      sessionFeeling: overrides.sessionFeeling,
+      sessionNote: overrides.sessionNote,
+    };
+  }
+
+  function withSessions(sessions: WorkoutSession[]): SharedUserData {
+    return {
+      ...EMPTY_SHARED_USER_DATA,
+      programmeState: { recentSessions: sessions },
+    };
+  }
+
+  it('surfaces recent sessions as a compact prose line', () => {
+    const data = withSessions([
+      session({ sessionFeeling: 'okay', logs: [{ plannedExerciseId: 'ex-1', name: 'Back squat', status: 'completed', sets: [] }] }),
+    ]);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('recent training');
+    expect(block).toContain('back squat');
+    expect(block).toContain('felt okay');
+  });
+
+  it('marks abandoned sessions as cut short instead of felt-rating', () => {
+    const data = withSessions([session({ status: 'abandoned', abandonedAt: Date.now() })]);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('cut short');
+    expect(block).not.toContain('felt undefined');
+  });
+
+  it('caps the digest at three sessions', () => {
+    const sessions = Array.from({ length: 5 }, (_, i) =>
+      session({ id: `sess-${i}`, logs: [{ plannedExerciseId: `ex-${i}`, name: `Move ${i}`, status: 'completed', sets: [] }] }),
+    );
+    const data = withSessions(sessions);
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    // The 4th and 5th sessions' focus names should not appear.
+    expect(block).toContain('move 0');
+    expect(block).not.toContain('move 3');
+    expect(block).not.toContain('move 4');
+  });
+
+  it('omits the training line when there are no sessions', () => {
+    const block = buildTeamContext(
+      'nneka',
+      {},
+      'Innocent',
+      { ...EMPTY_SHARED_USER_DATA, userProfile: { height: 178 } },
+    );
+    expect(block).toContain('178 cm tall');
+    expect(block).not.toContain('recent training');
   });
 });

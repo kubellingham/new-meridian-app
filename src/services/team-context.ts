@@ -1,6 +1,10 @@
 import { getCharacter, type CharacterId } from '@/src/content/characters';
 import type { ChatMessage } from '@/src/store/chat-store';
-import type { SharedUserData, TeamEvent } from '@/src/types/user-data';
+import type {
+  SharedUserData,
+  TeamEvent,
+  WorkoutSession,
+} from '@/src/types/user-data';
 import { pendingEventsFor } from './events';
 
 /**
@@ -119,7 +123,66 @@ function shareableFacts(data: SharedUserData): string[] {
     lines.push(`most recent weight around ${data.dailySignals.currentWeight} kg`);
   }
 
+  const trainingLine = describeRecentTraining(data.programmeState.recentSessions);
+  if (trainingLine) lines.push(trainingLine);
+
   return lines;
+}
+
+/** How many past sessions surface in the team-context digest. */
+const RECENT_TRAINING_DIGEST_MAX = 3;
+
+/**
+ * Compact one-line summary of the last N sessions for the facts block.
+ * The trainer's own generation call also reads this via the same block,
+ * so the shape needs to convey enough to progress load — focus, duration,
+ * feel, whether it completed. Empty string when there's nothing to say.
+ */
+function describeRecentTraining(sessions: WorkoutSession[] | undefined): string {
+  if (!sessions || sessions.length === 0) return '';
+
+  const parts = sessions.slice(0, RECENT_TRAINING_DIGEST_MAX).map((s) => {
+    const dayLabel = describeDayFromEpoch(s.completedAt ?? s.abandonedAt ?? s.startedAt);
+    const focus = s.logs[0]?.name ? sessionFocusHint(s) : 'training';
+    const durationMin =
+      s.completedAt && s.startedAt
+        ? Math.max(1, Math.round((s.completedAt - s.startedAt) / 60000))
+        : undefined;
+    const bits: string[] = [`${dayLabel} ${focus}`];
+    if (durationMin !== undefined) bits.push(`${durationMin} min`);
+    if (s.status === 'abandoned') {
+      bits.push('cut short');
+    } else if (s.sessionFeeling) {
+      bits.push(`felt ${s.sessionFeeling}`);
+    }
+    return bits.join(' · ');
+  });
+
+  return `recent training: ${parts.join('; ')}`;
+}
+
+/** Best-effort focus label for a session — falls back to the first exercise. */
+function sessionFocusHint(s: WorkoutSession): string {
+  const first = s.logs[0]?.name;
+  return first ? first.toLowerCase() : 'training';
+}
+
+/**
+ * Short-form day label ("Mon", "yesterday", "today") from an epoch ms.
+ * Kept simple and calendar-day-based; timezone is device local.
+ */
+function describeDayFromEpoch(at: number): string {
+  const then = new Date(at);
+  const now = new Date();
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(then)) / (24 * 60 * 60 * 1000));
+  if (dayDiff === 0) return 'today';
+  if (dayDiff === 1) return 'yesterday';
+  if (dayDiff > 1 && dayDiff <= 6) {
+    return then.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+  return then.toISOString().slice(0, 10);
 }
 
 /**
