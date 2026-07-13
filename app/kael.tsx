@@ -29,6 +29,11 @@ export default function KaelScreen() {
       showBack
       pendingOpening={pendingOpening}
       onOpeningDelivered={markEventDelivered}
+      starterPrompts={[
+        "How's my week looking?",
+        'What should I focus on today?',
+        'Any patterns I should know about?',
+      ]}
     />
   );
 }

@@ -159,12 +159,61 @@ async function requestText(
   return text;
 }
 
+/** A character's reply plus any tappable answers they suggested. */
+export interface CharacterReply {
+  text: string;
+  /** 0-4 short answers to the question the reply asked, in the user's voice. */
+  suggestedReplies: string[];
+}
+
 /**
- * Sends the conversation to Claude and returns the character's reply
- * text. After a successful reply, marks every pending team event for
- * this character as seen — their reply is the point at which they had
- * a chance to weave the event context in, so it's no longer "pending"
- * for their next turn.
+ * The quick-reply side channel: when a character asks a question with a
+ * small set of natural answers, they also call this tool so the UI can
+ * offer tappable choices. tool_choice stays auto everywhere — prose is
+ * never forced through it, and open questions produce no chips.
+ */
+export const SUGGEST_REPLIES_TOOL: Anthropic.Tool = {
+  name: 'suggest_replies',
+  description:
+    "When your reply asks the user ONE direct question that has a small set of natural answers, also call this with 2-4 short options they could tap instead of typing. Each option must be an answer to your question, phrased in the user's voice (\"Push me\", \"3 days a week\", \"Mostly at home\"), 6 words or fewer. Do NOT call this for open-ended questions, rhetorical questions, or replies that ask nothing.",
+  input_schema: {
+    type: 'object',
+    required: ['replies'] as string[],
+    properties: {
+      replies: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "2-4 tappable answers in the user's voice, each 6 words or fewer.",
+      },
+    },
+  },
+};
+
+/** Validates suggest_replies input — bad entries drop, never throw. */
+export function parseSuggestedReplies(input: unknown): string[] {
+  const replies = (input as { replies?: unknown })?.replies;
+  if (!Array.isArray(replies)) return [];
+  return replies
+    .filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
+    .map((r) => r.trim())
+    .slice(0, 4);
+}
+
+/** Pulls the suggested replies out of a response, if the tool was called. */
+export function extractSuggestedReplies(response: Anthropic.Message): string[] {
+  const block = response.content.find(
+    (b): b is Anthropic.ToolUseBlock =>
+      b.type === 'tool_use' && b.name === SUGGEST_REPLIES_TOOL.name,
+  );
+  return block ? parseSuggestedReplies(block.input) : [];
+}
+
+/**
+ * Sends the conversation to Claude and returns the character's reply —
+ * text plus any quick-reply suggestions. After a successful reply, marks
+ * every pending team event for this character as seen — their reply is
+ * the point at which they had a chance to weave the event context in,
+ * so it's no longer "pending" for their next turn.
  *
  * @param characterId which specialist is speaking
  * @param history the full thread so far (persisted messages, oldest first)
@@ -174,10 +223,26 @@ export async function getCharacterReply(
   characterId: CharacterId,
   history: ChatMessage[],
   userName: string,
-): Promise<string> {
-  const text = await requestText(characterId, userName, toApiMessages(history));
+): Promise<CharacterReply> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: buildSystem(characterId, userName),
+    tools: [SUGGEST_REPLIES_TOOL],
+    messages: toApiMessages(history),
+  });
+
+  const text = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('')
+    .trim();
+  if (!text) {
+    throw new Error('Empty response from model');
+  }
+
   acknowledgePendingEvents(characterId);
-  return text;
+  return { text, suggestedReplies: extractSuggestedReplies(response) };
 }
 
 /** Marks every event pending for this character as seen. */

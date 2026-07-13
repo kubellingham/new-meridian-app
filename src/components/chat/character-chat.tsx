@@ -22,12 +22,13 @@ import {
   getCharacterReply,
   getReturnGreeting,
   isClaudeConfigured,
+  type CharacterReply,
 } from '@/src/services/claude';
 import { speak, stopSpeaking, voiceConfigured } from '@/src/services/voice';
 import { makeMessageId, useChatStore, type ChatMessage } from '@/src/store/chat-store';
 import { useSettingsStore } from '@/src/store/settings-store';
 import { useUserStore } from '@/src/store/user-store';
-import { colors, spacing } from '@/src/theme/theme';
+import { colors, radius, spacing } from '@/src/theme/theme';
 
 type CharacterChatProps = {
   /** Which character this surface belongs to. */
@@ -53,9 +54,16 @@ type CharacterChatProps = {
   /**
    * Replaces the default reply call — surfaces with side channels (e.g.
    * the NS chat, whose replies can also log food via a tool) fetch their
-   * own reply and handle the extras, returning just the text to show.
+   * own reply and handle the extras, returning the text to show plus any
+   * quick-reply suggestions.
    */
-  fetchReply?: (history: ChatMessage[]) => Promise<string>;
+  fetchReply?: (history: ChatMessage[]) => Promise<CharacterReply>;
+  /**
+   * Conversation starters shown as tappable chips while this visit has
+   * no user message yet — so nobody stares at an empty input wondering
+   * what a trainer can even be asked.
+   */
+  starterPrompts?: string[];
 };
 
 /** How recently the user must have visited to skip the API return greeting. */
@@ -106,6 +114,7 @@ export function CharacterChat({
   pendingOpening,
   onOpeningDelivered,
   fetchReply,
+  starterPrompts,
 }: CharacterChatProps) {
   const name = useUserStore((s) => s.name);
   const threads = useChatStore((s) => s.threads);
@@ -119,6 +128,8 @@ export function CharacterChat({
   const [waiting, setWaiting] = useState(false);
   const [greetingLoading, setGreetingLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Quick replies from the character's last message — cleared on send.
+  const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   // Index in the full thread where this visit began; messages from here on
   // are the visible present-moment view. Null until the visit initializes.
   const [visitStart, setVisitStart] = useState<number | null>(null);
@@ -194,6 +205,7 @@ export function CharacterChat({
     };
     append(characterId, userMessage);
     setWaiting(true);
+    setSuggestedReplies([]); // chips answer the previous question only
     stopSpeaking(); // a new message supersedes any reply still being spoken
 
     try {
@@ -203,9 +215,10 @@ export function CharacterChat({
       const reply = fetchReply
         ? await fetchReply(fullHistory)
         : await getCharacterReply(characterId, fullHistory, name);
-      append(characterId, assistantMessage(reply));
+      append(characterId, assistantMessage(reply.text));
+      setSuggestedReplies(reply.suggestedReplies);
       if (voiceEnabled && voiceAvailable) {
-        void speak(characterId, reply);
+        void speak(characterId, reply.text);
       }
     } catch (error) {
       console.error(`${character.name} conversation request failed:`, error);
@@ -230,6 +243,16 @@ export function CharacterChat({
   const visitMessages = visitStart == null ? [] : thread.slice(visitStart);
   const visible = visitMessages.slice(-MAX_VISIBLE);
   const busy = waiting || greetingLoading;
+
+  // Chips above the input: the character's quick replies win; otherwise
+  // starter prompts carry a fresh visit until the first message is sent.
+  const visitHasUserMessage = visitMessages.some((m) => m.role === 'user');
+  const chips =
+    suggestedReplies.length > 0
+      ? { kind: 'reply' as const, items: suggestedReplies }
+      : !visitHasUserMessage && configured && (starterPrompts?.length ?? 0) > 0
+        ? { kind: 'starter' as const, items: starterPrompts! }
+        : null;
 
   // Full history for the overlay — every persisted turn, errors omitted.
   const fullHistory = thread.filter((m) => !m.error);
@@ -330,6 +353,28 @@ export function CharacterChat({
           </View>
         )}
 
+        {/* Tappable chips: quick replies to the character's question, or
+            conversation starters on a fresh visit. Tapping sends as text —
+            typing stays available either way. */}
+        {chips && !busy && (
+          <View style={styles.chipRow}>
+            {chips.items.map((chip, i) => (
+              <Pressable
+                key={`${chips.kind}-${chip}`}
+                onPress={() => handleSend(chip)}
+                accessibilityRole="button"
+                testID={`chip-${chips.kind}-${i}`}
+              >
+                <View style={styles.chip}>
+                  <AppText variant="caption" color={colors.text}>
+                    {chip}
+                  </AppText>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <View style={styles.inputWrap}>
           <ChatInput
             onSend={handleSend}
@@ -417,6 +462,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  chip: {
+    backgroundColor: colors.panel,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   inputWrap: {
     paddingHorizontal: spacing.md,

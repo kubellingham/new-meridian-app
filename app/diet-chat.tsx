@@ -39,7 +39,11 @@ export default function DietChatScreen() {
   const fetchReply = useCallback(
     async (history: ChatMessage[]) => {
       if (!nsId) throw new Error('No nutrition specialist selected');
-      const { reply, foods } = await getCharacterReplyWithFoodLog(nsId, history, name);
+      const { reply, foods, suggestedReplies } = await getCharacterReplyWithFoodLog(
+        nsId,
+        history,
+        name,
+      );
       for (const parsed of foods) {
         logFood({
           id: makeFoodLogId(),
@@ -51,7 +55,7 @@ export default function DietChatScreen() {
           item: parsed.item,
         });
       }
-      return reply;
+      return { text: reply, suggestedReplies };
     },
     [nsId, name, logFood],
   );
@@ -73,6 +77,11 @@ export default function DietChatScreen() {
       placeholder="Tell me what you ate…"
       showBack
       fetchReply={fetchReply}
+      starterPrompts={[
+        'What should I eat tonight?',
+        'How am I doing on protein today?',
+        'Is my calorie target right for me?',
+      ]}
     />
   );
 }

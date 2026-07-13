@@ -13,6 +13,11 @@ export default function SeraScreen() {
       returnGreeting="Hey, you. Good to see you back — what's here right now?"
       placeholder="What's on your mind?"
       showBack
+      starterPrompts={[
+        "I'm struggling with motivation",
+        'Help me build a habit that sticks',
+        'This week was rough',
+      ]}
     />
   );
 }

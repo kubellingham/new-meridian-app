@@ -14,7 +14,13 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import type { CharacterId } from '@/src/content/characters';
-import { buildSystem, getClient, MODEL } from '@/src/services/claude';
+import {
+  buildSystem,
+  extractSuggestedReplies,
+  getClient,
+  MODEL,
+  SUGGEST_REPLIES_TOOL,
+} from '@/src/services/claude';
 import type { ChatMessage } from '@/src/store/chat-store';
 import type { FoodItem, MealSlot } from '@/src/types/user-data';
 
@@ -25,10 +31,11 @@ export interface ParsedFood {
   meal?: MealSlot;
 }
 
-/** Reply text + any foods the NS logged from the input. */
+/** Reply text + any foods the NS logged + quick-reply suggestions. */
 export interface FoodLoggingResult {
   reply: string;
   foods: ParsedFood[];
+  suggestedReplies: string[];
 }
 
 /** The meal slots the tool schema accepts. */
@@ -137,19 +144,22 @@ export function parseFoodsFromToolInput(input: unknown): ParsedFood[] {
   return parsed;
 }
 
-/** Pulls reply text + parsed foods out of one API response. */
+/** Pulls reply text + parsed foods + suggestions out of one API response. */
 function extractResult(response: Anthropic.Message): FoodLoggingResult {
   const reply = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
     .join('')
     .trim();
+  // Match the log_food block by name — with two tools aboard, "first
+  // tool_use" is no longer guaranteed to be the food log.
   const toolUse = response.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'log_food',
   );
   return {
     reply,
     foods: toolUse ? parseFoodsFromToolInput(toolUse.input) : [],
+    suggestedReplies: extractSuggestedReplies(response),
   };
 }
 
@@ -176,7 +186,7 @@ export async function getCharacterReplyWithFoodLog(
     model: MODEL,
     max_tokens: 1024,
     system: buildSystem(characterId, userName),
-    tools: [LOG_FOOD_TOOL],
+    tools: [LOG_FOOD_TOOL, SUGGEST_REPLIES_TOOL],
     messages: toApiMessages(history),
   });
   const result = extractResult(response);

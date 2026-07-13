@@ -48,16 +48,38 @@ describe('claude service', () => {
   it('sends the locked model with the assembled character system prompt', async () => {
     const reply = await getCharacterReply('nneka', [msg('user', 'I had jollof rice')], 'Innocent');
 
-    expect(reply).toBe('Ah, that sounds like a solid plate.');
+    expect(reply.text).toBe('Ah, that sounds like a solid plate.');
+    expect(reply.suggestedReplies).toEqual([]);
     const request = mockCreate.mock.calls[0][0];
     expect(request.model).toBe('claude-sonnet-4-6');
     expect(request.max_tokens).toBe(1024);
     // No sampling params — steering is prompt-only.
     expect(request.temperature).toBeUndefined();
+    // The quick-reply tool rides along, never forced.
+    expect(request.tools.map((t: { name: string }) => t.name)).toEqual(['suggest_replies']);
+    expect(request.tool_choice).toBeUndefined();
     // Shared rules first, then character voice, then user context.
     expect(request.system).toContain('THE RULES EVERY MERIDIAN CHARACTER FOLLOWS');
     expect(request.system).toContain('You are Nneka');
     expect(request.system).toContain('Their name is Innocent');
+  });
+
+  it('surfaces quick replies when the character calls suggest_replies', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        { type: 'text', text: 'How many days a week can you realistically train?' },
+        {
+          type: 'tool_use',
+          name: 'suggest_replies',
+          input: { replies: ['2 days', '3 days', '4 or more', 42, '  '] },
+        },
+      ],
+    });
+
+    const reply = await getCharacterReply('cassidy', [msg('user', 'help me plan')], 'Innocent');
+    expect(reply.text).toBe('How many days a week can you realistically train?');
+    // Non-strings and blanks drop; order preserved.
+    expect(reply.suggestedReplies).toEqual(['2 days', '3 days', '4 or more']);
   });
 
   it('includes the team roster in the context so characters route by name', async () => {

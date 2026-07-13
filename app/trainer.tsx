@@ -104,6 +104,11 @@ export default function TrainerScreen() {
       returnGreeting={scripts.returnGreeting}
       placeholder={scripts.placeholder}
       showBack
+      starterPrompts={[
+        "What's my workout today?",
+        'When should I exercise?',
+        'How do I warm up properly?',
+      ]}
     />
   );
 }
