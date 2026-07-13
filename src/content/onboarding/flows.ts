@@ -1,20 +1,30 @@
 /**
- * The weight-loss onboarding script, as data — a linear walk of beats
- * Kael and Sera narrate to assemble the user's team and collect exactly
- * what the app needs to run. Text-forward (no voice-over, no portraits);
- * every VOICE line from Meridian_Weight_Loss_Onboarding_Script_v1.md
- * renders on screen. All copy here is pre-written and static — the Claude
- * API only takes over once the user is in the product (script principle
- * #6). {NAME}, {TRAINER}, {NS} tokens are interpolated by the controller.
+ * The onboarding script, as data — a linear walk of beats Kael and Sera
+ * narrate to assemble the user's team and collect exactly what the app
+ * needs to run. Text-forward (no voice-over, no portraits); the
+ * weight-loss VOICE lines come from
+ * Meridian_Weight_Loss_Onboarding_Script_v1.md; the build-muscle and
+ * general-fitness branches are drafted here with the same conventions.
+ * All copy is pre-written and static — the Claude API only takes over
+ * once the user is in the product (script principle #6). {NAME},
+ * {TRAINER}, {NS} tokens are interpolated by the controller.
+ *
+ * One parameterized flow: `buildOnboardingFlow(goal)`. Every goal shares
+ * the same beat sequence; only Kael's goal reactions, the numbers beat,
+ * and his trainer-roster framing differ. The prefix up to and including
+ * the goal question is identical across goals, so the controller can
+ * rebuild the flow when the goal answer lands without invalidating the
+ * current step index.
  *
  * MVP scoping vs. the source script: Phase 0 (language + ToS) skipped,
  * Phase 5 widget-picker replaced by the default Home layout, Phase 6
- * auth/trial reduced to honest local-only framing. Trainer intros/commits
- * and Elena's are transcribed from the script; the other seven NS
- * intros/commits are drafted here to match each locked voice.
+ * auth/trial reduced to honest local-only framing. The weight-loss
+ * trainer intros/commits and Elena's are transcribed from the script;
+ * every other specialist's are drafted to their locked voice.
  */
 
 import type { CharacterId } from '@/src/content/characters';
+import type { PrimaryGoal } from '@/src/types/user-data';
 
 /** Where a collected answer is destined — mapped to stores at finish. */
 export type OnboardingField =
@@ -33,6 +43,8 @@ export interface NumberField {
   label: string;
   unit: string;
   placeholder: string;
+  /** Optional fields may be left blank (general fitness's goal weight). */
+  optional?: boolean;
 }
 
 /** A tappable card in a choice beat, with the speaker's reaction to it. */
@@ -205,7 +217,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     intro: [
       '{NAME}. Hello — good to meet you.',
       "I'm Nneka. I grew up in Lagos, in a house where the food never stopped and nobody ate alone — jollof, egusi, beans, plantain, yam. Then I studied nutrition and spent years watching people be told that same food was the problem. So I built my practice to prove what my grandmother already knew: the food isn't the enemy. Portions, timing — those we can talk about. The food itself carries good sense.",
-      "Here's how I work. I'm not going to take your own food away and hand you some foreign plan — that's the opposite of the point. I work with whatever you actually eat. I just bring a West African eye to it: honest portions, real fuel, no shame. We lose the weight with your food, not in spite of it.",
+      "Here's how I work. I'm not going to take your own food away and hand you some foreign plan — that's the opposite of the point. I work with whatever you actually eat. I just bring a West African eye to it: honest portions, real fuel, no shame. We get where you're going with your food, not in spite of it.",
       'Meet the others if you like, my dear. No wahala. The right one is whoever you keep wanting to talk to.',
     ],
     commit: [
@@ -217,7 +229,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     intro: [
       'Haan — hello, {NAME}. Good to meet you.',
       "I'm Kavya, from Delhi. I grew up between my mother's kitchen and one stubborn question: why does everyone treat roti like the enemy and a protein bar like medicine? I studied nutrition to answer it properly — and the answer made me sharper. Dal and rice make a complete protein. Curd was probiotic before anyone put the word on a label. Everyday Indian food, balanced the way households have balanced it for centuries, already works.",
-      "So here's how I work. I'm not taking your food away to give you sad diet plates — bas, no. I work with whatever you actually eat. I bring the why to it: what's already good on your plate, what's quietly costing you, where the small fix is. We lose the weight through your food, not around it.",
+      "So here's how I work. I'm not taking your food away to give you sad diet plates — bas, no. I work with whatever you actually eat. I bring the why to it: what's already good on your plate, what's quietly costing you, where the small fix is. We get you there through your food, not around it.",
       'Meet the others if you want, beta. The right one is whoever you keep coming back to.',
     ],
     commit: [
@@ -229,7 +241,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     intro: [
       'Hello, {NAME}.',
       "I'm Haruki. Kyoto. I grew up with small meals — fish, rice, miso, something green. Nothing extra, nothing missing. I studied nutrition and found the science mostly agreed with my grandmother's table. So that is how I work. Simply.",
-      'I will not replace your food with mine. I work with whatever you eat. I bring one thing to it — balance you can feel, not count. A good plate needs no defending. We build those, quietly, and the weight follows.',
+      'I will not replace your food with mine. I work with whatever you eat. I bring one thing to it — balance you can feel, not count. A good plate needs no defending. We build those, quietly, and the goal follows.',
       'Meet the others if you wish. The right one is the one you keep returning to. No rush.',
     ],
     commit: [
@@ -241,7 +253,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     intro: [
       '¡Hola, {NAME}! Qué gusto — so good to meet you.',
       "I'm Sofía, from Guadalajara. My family's kitchen never stopped — beans on the stove, tortillas by hand, salsa from whatever the market had. I studied nutrition and came home a little angry: the world had turned my food into a diet villain and sold sad bowls of nothing as 'health.' So my practice is the correction. Beans and corn are one of the oldest complete proteins on earth. Real Mexican food, built the way it's always been built, is on your side.",
-      "So this is how I work, cariño. I'm not going to take your food away — never. I work with whatever you actually eat. I bring my eye to it: what's already beautiful on your plate, and the one or two things we gently adjust. We lose the weight and we enjoy the food. Both. Always both.",
+      "So this is how I work, cariño. I'm not going to take your food away — never. I work with whatever you actually eat. I bring my eye to it: what's already beautiful on your plate, and the one or two things we gently adjust. We reach your goal and we enjoy the food. Both. Always both.",
       'Ándale — meet the others if you like. The right one is whoever you keep wanting to hear from.',
     ],
     commit: [
@@ -266,7 +278,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
       'Yia sou, {NAME}. Hello.',
       "I'm Elena. I grew up on my family's olive farm in Greece — every meal of my childhood was built around what was growing that season. Tomatoes in summer, oranges in winter, olives always. I studied nutrition because I wanted to understand why the food I grew up with was so good for you. Turns out the science agrees with the grandmothers. Usually does.",
       "Here's how I work. I'm not going to make you eat only Greek food. I work with whatever you actually eat — that's the whole point of meeting you where you are. But the way I think about food comes from my tradition: seasonal, simple, joyful, shared. I'll bring that lens to whatever you put in front of me.",
-      "And one more thing — I won't make food a chore. The Mediterranean way is that eating is one of life's actual pleasures. We can lose weight, build a body you love, and enjoy what's on your plate. Anyone telling you those three can't happen together hasn't been to Greece.",
+      "And one more thing — I won't make food a chore. The Mediterranean way is that eating is one of life's actual pleasures. We can reach your goal, build a body you love, and enjoy what's on your plate. Anyone telling you those three can't happen together hasn't been to Greece.",
       "Meet the others if you'd like. The right one for you is whoever you keep wanting to hear from.",
     ],
     commit: [
@@ -290,7 +302,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
     intro: [
       "Hello, {NAME}. Good — let's meet properly.",
       "I'm Mei Lin, from Chengdu, a city that takes food as seriously as anywhere on earth. I grew up between my grandmother's medicinal soups and the roar of Sichuan peppercorns, and I learned early that Chinese cooking is a whole philosophy: balance of flavors, balance of temperaments, food as daily medicine. I studied nutrition formally and found it half catching up to what my tradition systematized centuries ago.",
-      "So this is how I work. I won't replace your food with mine — that's not the point. I work with whatever you eat. But I bring one conviction to it: if the food has no soul, the plan has no future. People abandon joyless eating every time. So we keep the flavor and lose the weight. That isn't a contradiction — it's the strategy.",
+      "So this is how I work. I won't replace your food with mine — that's not the point. I work with whatever you eat. But I bring one conviction to it: if the food has no soul, the plan has no future. People abandon joyless eating every time. So we keep the flavor and reach the goal. That isn't a contradiction — it's the strategy.",
       'Hm — meet the others if you like. The right one is whoever you keep wanting to hear from.',
     ],
     commit: [
@@ -316,8 +328,12 @@ export const NS_TRADITION: Partial<Record<CharacterId, string>> = {
   'mei-lin': 'Chinese',
 };
 
-/** The ordered onboarding walk for the weight-loss path. */
-export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
+/**
+ * Beats shared by every goal, up through the activity question. The goal
+ * card beat lives here (its reactions differ per card, not per flow), so
+ * the prefix is identical whichever goal the user ends up picking.
+ */
+const OPENING_BEATS: OnboardingBeat[] = [
   // — PHASE 1: Kael, welcome + core data —
   {
     kind: 'say',
@@ -375,16 +391,18 @@ export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
       {
         value: 'build-muscle',
         label: 'Build muscle',
-        reaction: [],
-        disabled: true,
-        disabledNote: 'Coming soon — V1 is built around weight loss.',
+        reaction: [
+          'Building muscle. Good.',
+          "That's a patient game — the kind that rewards structure. Structure is what I do.",
+        ],
       },
       {
         value: 'general-fitness',
         label: 'General fitness',
-        reaction: [],
-        disabled: true,
-        disabledNote: 'Coming soon — V1 is built around weight loss.',
+        reaction: [
+          'General fitness. Honestly — underrated answer.',
+          'Strong, mobile, durable. Everything else in life gets easier from there. We build the base properly.',
+        ],
       },
     ],
   },
@@ -420,17 +438,42 @@ export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
       },
     ],
   },
-  {
+];
+
+/**
+ * Kael's numbers beat, shaped per goal: weight loss aims below the
+ * current weight, muscle building targets at or above it, and general
+ * fitness treats a weight target as optional — consistency is the goal.
+ */
+function numbersBeat(goal: PrimaryGoal): OnboardingBeat {
+  const height: NumberField = { key: 'height', label: 'Height', unit: 'cm', placeholder: 'e.g. 175' };
+  const current: NumberField = {
+    key: 'startingWeight',
+    label: 'Current weight',
+    unit: 'kg',
+    placeholder: 'e.g. 82',
+  };
+  const goalWeight: NumberField = {
+    key: 'goalWeight',
+    label: goal === 'build-muscle' ? 'Target weight' : 'Goal weight',
+    unit: 'kg',
+    placeholder: goal === 'build-muscle' ? 'e.g. 86' : 'e.g. 74',
+    optional: goal === 'general-fitness',
+  };
+  return {
     kind: 'numbers',
     speaker: 'kael',
-    prompt: "A couple of numbers and I've got what I need to set your targets.",
-    fields: [
-      { key: 'height', label: 'Height', unit: 'cm', placeholder: 'e.g. 175' },
-      { key: 'startingWeight', label: 'Current weight', unit: 'kg', placeholder: 'e.g. 82' },
-      { key: 'goalWeight', label: 'Goal weight', unit: 'kg', placeholder: 'e.g. 74' },
-    ],
+    prompt:
+      goal === 'general-fitness'
+        ? "A couple of numbers and I've got what I need to set your targets. A goal weight is optional here — skip it if you don't have one."
+        : "A couple of numbers and I've got what I need to set your targets.",
+    fields: [height, current, goalWeight],
     ack: ["Good. That's everything I need."],
-  },
+  };
+}
+
+/** Sera's section plus the hand-back — identical for every goal. */
+const SERA_BEATS: OnboardingBeat[] = [
   {
     kind: 'say',
     speaker: 'kael',
@@ -568,16 +611,31 @@ export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
     ],
   },
 
-  // — PHASE 3: Trainer selection —
-  {
+];
+
+/** What Kael says the user told him, per goal — his roster framing. */
+const GOAL_FRAMING: Record<PrimaryGoal, string> = {
+  'weight-loss': 'losing weight, building this into a lifestyle',
+  'build-muscle': 'building muscle, doing it properly',
+  'general-fitness': 'building all-round fitness you keep',
+};
+
+/** Kael frames the trainer choice — the one goal-dependent line of Phase 3. */
+function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
+  return {
     kind: 'say',
     speaker: 'kael',
     skippable: true,
     lines: [
       'Alright. Now we put the rest of your team together. First — your trainer.',
-      "Based on what you've told us — losing weight, building this into a lifestyle — I've got three people I think you should meet. Each of them could work with you. The right one is whoever feels right to you, not whoever I think is best on paper.",
+      `Based on what you've told us — ${GOAL_FRAMING[goal]} — I've got three people I think you should meet. Each of them could work with you. The right one is whoever feels right to you, not whoever I think is best on paper.`,
     ],
-  },
+  };
+}
+
+/** Trainer roster through the finish — identical for every goal. */
+const CLOSING_BEATS: OnboardingBeat[] = [
+  // — PHASE 3: Trainer selection —
   {
     kind: 'roster',
     speaker: 'kael',
@@ -661,3 +719,19 @@ export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
     buttonLabel: 'Enter Meridian',
   },
 ];
+
+/**
+ * Assembles the full onboarding walk for a goal. Until the user answers
+ * the goal question the controller passes the default ('weight-loss');
+ * because the opening segment is goal-independent, rebuilding the flow
+ * after the answer lands keeps every earlier step index valid.
+ */
+export function buildOnboardingFlow(goal: PrimaryGoal): OnboardingBeat[] {
+  return [
+    ...OPENING_BEATS,
+    numbersBeat(goal),
+    ...SERA_BEATS,
+    trainerFramingBeat(goal),
+    ...CLOSING_BEATS,
+  ];
+}

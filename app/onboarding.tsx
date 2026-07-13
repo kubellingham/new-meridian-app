@@ -12,19 +12,24 @@ import {
 } from 'react-native';
 
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
-import { getCharacter, getCharactersByRole, type CharacterId } from '@/src/content/characters';
 import {
+  getCharacter,
+  getCharactersByRole,
+  getTrainersForGoal,
+  type CharacterId,
+} from '@/src/content/characters';
+import {
+  buildOnboardingFlow,
   NS_TRADITION,
   SPECIALIST_ONBOARDING,
-  WEIGHT_LOSS_ONBOARDING,
   type CardOption,
   type OnboardingBeat,
-} from '@/src/content/onboarding/weight-loss';
+} from '@/src/content/onboarding/flows';
 import { computeTargets } from '@/src/services/nutrition-targets';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
-import type { UserProfile } from '@/src/types/user-data';
+import type { PrimaryGoal, UserProfile } from '@/src/types/user-data';
 
 type Answers = Record<string, string>;
 type Ctx = { name?: string; trainer?: string; ns?: string };
@@ -94,8 +99,12 @@ export default function OnboardingScreen() {
   const [metCharacter, setMetCharacter] = useState<CharacterId | null>(null);
   const [committed, setCommitted] = useState(false);
 
-  const beat = WEIGHT_LOSS_ONBOARDING[stepIndex];
-  const total = WEIGHT_LOSS_ONBOARDING.length;
+  // The chosen goal shapes the beats after the goal question; the shared
+  // prefix is identical, so rebuilding mid-walk keeps stepIndex valid.
+  const goal = (answers.goal as PrimaryGoal | undefined) ?? 'weight-loss';
+  const flow = useMemo(() => buildOnboardingFlow(goal), [goal]);
+  const beat = flow[stepIndex];
+  const total = flow.length;
 
   const ctx: Ctx = useMemo(
     () => ({
@@ -153,7 +162,7 @@ export default function OnboardingScreen() {
     const profile: Partial<UserProfile> = {
       birthday: answers.birthday || undefined,
       gender: answers.gender,
-      primaryGoal: 'weight-loss',
+      primaryGoal: goal,
       activityLevel: answers.activity as UserProfile['activityLevel'],
       height: Number(answers.height) || undefined,
       startingWeight: startingWeight || undefined,
@@ -179,11 +188,20 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   }
 
-  /** True when goal weight is set at or above current weight (gentle nudge). */
-  function isWeightGoalOff(): boolean {
+  /** A gentle plausibility nudge on the weight fields, per goal. Null = fine. */
+  function weightNudge(): string | null {
     const current = Number(numberValues.startingWeight);
-    const goal = Number(numberValues.goalWeight);
-    return Number.isFinite(current) && Number.isFinite(goal) && current > 0 && goal >= current;
+    const target = Number(numberValues.goalWeight);
+    const bothSet =
+      Number.isFinite(current) && current > 0 && Number.isFinite(target) && target > 0;
+    if (!bothSet) return null;
+    if (goal === 'weight-loss' && target >= current) {
+      return 'For weight loss your goal is usually below your current weight — worth a double-check.';
+    }
+    if (goal === 'build-muscle' && target < current) {
+      return 'For building muscle your target is usually at or above your current weight — worth a double-check.';
+    }
+    return null;
   }
 
   const continueButton = (onPress: () => void, label = 'Continue', disabled = false) => (
@@ -276,9 +294,12 @@ export default function OnboardingScreen() {
       case 'numbers': {
         const b = beat;
         const allFilled = b.fields.every((f) => {
-          const n = Number(numberValues[f.key]);
+          const raw = (numberValues[f.key] ?? '').trim();
+          if (f.optional && raw === '') return true;
+          const n = Number(raw);
           return Number.isFinite(n) && n > 0;
         });
+        const nudge = weightNudge();
         return (
           <>
             <SpokenLines speaker={b.speaker} lines={[b.prompt]} ctx={ctx} />
@@ -303,10 +324,9 @@ export default function OnboardingScreen() {
                 </View>
               </View>
             ))}
-            {isWeightGoalOff() && (
+            {nudge && (
               <AppText variant="caption" color={colors.warning} style={styles.hint}>
-                For weight loss your goal is usually below your current weight — worth a
-                double-check.
+                {nudge}
               </AppText>
             )}
             {continueButton(
@@ -411,11 +431,12 @@ export default function OnboardingScreen() {
       );
     }
 
-    // Roster grid.
+    // Roster grid — trainers are filtered to the chosen goal's roster.
+    const roster = b.role === 'trainer' ? getTrainersForGoal(goal) : getCharactersByRole(b.role);
     return (
       <>
         <SpokenLines speaker={b.speaker} lines={[b.prompt]} ctx={ctx} />
-        {getCharactersByRole(b.role).map((c) => (
+        {roster.map((c) => (
           <Pressable
             key={c.id}
             onPress={() => setMetCharacter(c.id)}
