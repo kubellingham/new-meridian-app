@@ -15,10 +15,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import type { CharacterId } from '@/src/content/characters';
+import { exerciseByName, filterByAccess } from '@/src/content/exercises';
 import { buildSystem, getClient, MODEL } from '@/src/services/claude';
 import { buildProgressionDigest } from '@/src/services/workout-progression';
 import { useUserDataStore } from '@/src/store/user-data-store';
-import type { ExerciseCategory, WorkoutPlan } from '@/src/types/user-data';
+import type { ExerciseCategory, UserProfile, WorkoutPlan } from '@/src/types/user-data';
 
 /** Local ISO date (YYYY-MM-DD) — used to stamp `forDate` and dedup per day. */
 export function todayLocalISODate(): string {
@@ -60,12 +61,15 @@ const EXERCISE_CATEGORIES: ExerciseCategory[] = [
 ];
 
 /**
- * The tool the trainer must call. The schema names each field so Claude
- * fills the right shape; descriptions carry the intent. Fields the caller
- * stamps (id, createdAt, forDate, createdBy) are NOT in the schema — the
- * trainer decides the plan, we own the metadata.
+ * The tool the trainer must call, built per request so the exercise-name
+ * enum reflects the user's actual equipment access — every plan is
+ * buildable with what they have, and every name resolves in the database.
+ * Descriptions carry the intent; fields the caller stamps (id, createdAt,
+ * forDate, createdBy) are NOT in the schema — the trainer decides the
+ * plan, we own the metadata.
  */
-const WORKOUT_PLAN_TOOL: Anthropic.Tool = {
+function buildWorkoutPlanTool(eligibleNames: string[]): Anthropic.Tool {
+  return {
   name: 'submit_workout_plan',
   description:
     "Submit today's workout plan for this user. Return the plan whether it's a training day or a rest day — a rest day is signalled by an empty exercises list plus a rest-day intent.",
@@ -96,7 +100,12 @@ const WORKOUT_PLAN_TOOL: Anthropic.Tool = {
           type: 'object',
           required: ['name', 'category', 'targetSets', 'targetReps'] as string[],
           properties: {
-            name: { type: 'string', description: 'Exercise name.' },
+            name: {
+              type: 'string',
+              enum: eligibleNames,
+              description:
+                "Exercise name — pick from this list (it's filtered to the user's equipment).",
+            },
             category: {
               type: 'string',
               enum: EXERCISE_CATEGORIES,
@@ -137,7 +146,8 @@ const WORKOUT_PLAN_TOOL: Anthropic.Tool = {
       },
     },
   },
-};
+  };
+}
 
 /** The subset of the plan Claude returns (before we stamp metadata). */
 interface WorkoutPlanInput {
@@ -187,21 +197,25 @@ export async function generateWorkoutPlan(
   trainerId: CharacterId,
   userName: string,
 ): Promise<WorkoutPlan> {
+  const { programmeState, userProfile } = useUserDataStore.getState();
+
   // The per-exercise progression digest is generation-specific detail —
   // it rides on the directive rather than every character's context, so
   // only the trainer composing a plan pays the tokens for it.
-  const digest = buildProgressionDigest(
-    useUserDataStore.getState().programmeState.recentSessions,
-  );
-  const directive = digest
-    ? `${GENERATE_PLAN_DIRECTIVE}\n\n${digest}`
-    : GENERATE_PLAN_DIRECTIVE;
+  const digest = buildProgressionDigest(programmeState.recentSessions);
+  const intakeLine = describeTrainingSetup(userProfile);
+  const directive = [GENERATE_PLAN_DIRECTIVE, intakeLine, digest]
+    .filter(Boolean)
+    .join('\n\n');
 
+  // The name enum is filtered to the user's equipment, so the plan can
+  // only prescribe movements they can actually do.
+  const eligible = filterByAccess(userProfile.equipmentAccess);
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 2048,
     system: buildSystem(trainerId, userName),
-    tools: [WORKOUT_PLAN_TOOL],
+    tools: [buildWorkoutPlanTool(eligible.map((e) => e.name))],
     tool_choice: { type: 'tool', name: 'submit_workout_plan' },
     messages: [{ role: 'user', content: directive }],
   });
@@ -225,8 +239,40 @@ export async function generateWorkoutPlan(
       targetReps: ex.targetReps,
       targetLoad: ex.targetLoad,
       restSeconds: ex.restSeconds,
-      cue: ex.cue,
+      // The trainer's cue wins; the database's neutral cue backstops it
+      // so no exercise ever renders uncoached.
+      cue: ex.cue ?? exerciseByName(ex.name)?.cue,
       note: ex.note,
     })),
   };
+}
+
+/**
+ * One directive line describing the user's training setup from the
+ * intake — equipment, cadence, experience. Empty when nothing's known
+ * yet (pre-intake accounts keep the old behavior).
+ */
+function describeTrainingSetup(profile: UserProfile): string {
+  const bits: string[] = [];
+  if (profile.equipmentAccess === 'bodyweight') {
+    bits.push('they train with bodyweight only — no equipment');
+  } else if (profile.equipmentAccess === 'home-basics') {
+    bits.push('they train at home with basics (dumbbells, kettlebell, bands, a bench, a pull-up bar)');
+  } else if (profile.equipmentAccess === 'full-gym') {
+    bits.push('they have full gym access');
+  }
+  if (profile.trainingDaysPerWeek) {
+    bits.push(`they aim to train ${profile.trainingDaysPerWeek} days a week`);
+  }
+  if (profile.fitnessExperience) {
+    const label =
+      profile.fitnessExperience === 'none'
+        ? 'new to structured training'
+        : profile.fitnessExperience === 'some'
+          ? 'somewhat experienced'
+          : 'experienced';
+    bits.push(`they are ${label}`);
+  }
+  if (bits.length === 0) return '';
+  return `[Training setup: ${bits.join('; ')}. Choose exercises and volume accordingly.]`;
 }
