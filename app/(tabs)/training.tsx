@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
 
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
-import { WorkoutStateCard } from '@/src/components/workout';
+import {
+  TrainerIntakeCard,
+  WorkoutStateCard,
+  type TrainerIntakeResult,
+} from '@/src/components/workout';
 import { getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { makeEventId } from '@/src/services/events';
@@ -30,7 +34,9 @@ export default function TrainingScreen() {
   const currentPlan = useUserDataStore((s) => s.programmeState.currentPlan);
   const currentSession = useUserDataStore((s) => s.programmeState.currentSession);
   const recentSessions = useUserDataStore((s) => s.programmeState.recentSessions);
+  const equipmentAccess = useUserDataStore((s) => s.userProfile.equipmentAccess);
   const setCurrentPlan = useUserDataStore((s) => s.setCurrentPlan);
+  const updateUserProfile = useUserDataStore((s) => s.updateUserProfile);
   const startSession = useUserDataStore((s) => s.startSession);
   const emitEvent = useUserDataStore((s) => s.emitEvent);
 
@@ -53,6 +59,9 @@ export default function TrainingScreen() {
   }
 
   const trainerName = trainer.name;
+  // First visit: the trainer asks their three setup questions before any
+  // plan can be generated — the answers filter the exercise database.
+  const needsIntake = equipmentAccess === undefined;
   const today = todayLocalISODate();
   const planIsForToday = currentPlan?.forDate === today;
   const completedToday = recentSessions?.find(
@@ -152,13 +161,21 @@ export default function TrainingScreen() {
           Training with {trainerName}
         </AppText>
 
-        <WorkoutStateCard
-          state={cardState}
-          trainerName={trainerName}
-          onGenerate={handleGenerate}
-          onStart={handleStart}
-          onResume={handleResume}
-        />
+        {needsIntake ? (
+          <TrainerIntakeCard
+            trainerId={trainerId}
+            trainerName={trainerName}
+            onComplete={(result: TrainerIntakeResult) => updateUserProfile(result)}
+          />
+        ) : (
+          <WorkoutStateCard
+            state={cardState}
+            trainerName={trainerName}
+            onGenerate={handleGenerate}
+            onStart={handleStart}
+            onResume={handleResume}
+          />
+        )}
 
         <Button
           label={`Talk to ${trainerName}`}
