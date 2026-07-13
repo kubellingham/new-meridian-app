@@ -3,7 +3,7 @@
     "name": "Meridian",
     "slug": "new-meridian-app",
     "owner": "kubellingham",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -37,6 +37,19 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Meridian uses the camera to scan food barcodes and photograph meals for logging."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Meridian uses your photos so your nutrition specialist can log meals from pictures.",
+          "cameraPermission": "Meridian uses the camera to photograph meals for logging."
+        }
+      ],
       [
         "expo-splash-screen",
         {

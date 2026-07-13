@@ -58,6 +58,11 @@ export default function RootLayout() {
         <Stack.Screen name="trainer" />
         <Stack.Screen name="workout/[sessionId]" />
         <Stack.Screen name="history" />
+        <Stack.Screen name="diet-chat" />
+        <Stack.Screen name="food/manual" />
+        <Stack.Screen name="food/search" />
+        <Stack.Screen name="food/scan" />
+        <Stack.Screen name="food/photo" />
       </Stack>
       <StatusBar style="light" />
     </GestureHandlerRootView>
