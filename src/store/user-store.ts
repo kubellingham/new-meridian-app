@@ -46,6 +46,13 @@ export const useUserStore = create<UserState>()(
     {
       name: 'meridian-user',
       storage: createJSONStorage(() => AsyncStorage),
+      // Persistence contract: any breaking schema change MUST bump
+      // `version` and extend `migrate` to carry old data forward —
+      // zustand otherwise drops persisted state silently, which would
+      // wipe a tester's history on an OTA update. Version 1 is the
+      // tester-round baseline (all fields optional; 0 -> 1 is identity).
+      version: 1,
+      migrate: (persisted) => persisted as never,
       // hasHydrated is runtime-only state; don't persist it.
       partialize: ({ hasHydrated, ...rest }) => rest,
       onRehydrateStorage: () => (state) => {
