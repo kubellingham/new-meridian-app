@@ -106,7 +106,7 @@ export default function FoodPhotoScreen() {
   if (!ns || !nsId) {
     return (
       <Screen>
-        <AppText variant="body">Pick a nutrition specialist in setup first.</AppText>
+        <AppText variant="body">Meet your nutrition specialist in onboarding first.</AppText>
       </Screen>
     );
   }

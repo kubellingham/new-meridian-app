@@ -9,8 +9,8 @@ import { colors, fonts } from '@/src/theme/theme';
  * The five-space navigation from the brief (§8):
  * Home | Training | Diet | Insights | Profile.
  *
- * Also acts as the entry gate: until the (temporary) setup has been
- * completed there is no team to talk to, so we redirect to /setup.
+ * Also acts as the entry gate: until onboarding has assembled the team
+ * there is no one to talk to, so we redirect to /onboarding.
  */
 export default function TabLayout() {
   const hasHydrated = useUserStore((s) => s.hasHydrated);
@@ -22,7 +22,7 @@ export default function TabLayout() {
   }
 
   if (!setupComplete) {
-    return <Redirect href="/setup" />;
+    return <Redirect href="/onboarding" />;
   }
 
   return (

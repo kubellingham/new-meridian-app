@@ -68,7 +68,7 @@ export default function DietScreen() {
   if (!ns || !nsId) {
     return (
       <Screen>
-        <AppText variant="body">Pick a nutrition specialist in setup first.</AppText>
+        <AppText variant="body">Meet your nutrition specialist in onboarding first.</AppText>
       </Screen>
     );
   }
@@ -136,15 +136,8 @@ export default function DietScreen() {
               No target yet
             </AppText>
             <AppText variant="caption" style={styles.promptBody}>
-              Fill in your height and weight under About You and Meridian sets a daily
-              target to aim at.
+              Log your current weight below and Meridian sets a daily target to aim at.
             </AppText>
-            <Button
-              label="Open Profile"
-              variant="secondary"
-              onPress={() => router.push('/(tabs)/profile')}
-              testID="diet-open-profile"
-            />
           </Card>
         )}
 

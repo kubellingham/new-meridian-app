@@ -5,9 +5,9 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { CharacterId } from '@/src/content/characters';
 
 /**
- * Local user profile. Populated today by the temporary setup screen;
- * the scripted onboarding (separate doc, later session) will replace
- * that surface but write into this same store.
+ * Local user profile — name plus the chosen trainer and nutrition
+ * specialist. Written by the scripted onboarding (app/onboarding.tsx),
+ * which also fills the richer shared-data profile in useUserDataStore.
  */
 interface UserState {
   /** The user's first name, as they want to be addressed. */
@@ -15,12 +15,12 @@ interface UserState {
   /** Chosen nutrition specialist. Null until setup completes. */
   nsId: CharacterId | null;
   /**
-   * Chosen trainer. Required by the current setup screen so the Training
-   * tab has a trainer to talk to. Stays nullable in the type to support
-   * users who completed setup before this became required.
+   * Chosen trainer. Onboarding requires one so the Training tab has a
+   * trainer to talk to. Stays nullable in the type to support users who
+   * completed setup before this became required.
    */
   trainerId: CharacterId | null;
-  /** True once the (temporary) setup has been completed. */
+  /** True once onboarding has assembled the team. */
   setupComplete: boolean;
   /** True once AsyncStorage rehydration has finished. */
   hasHydrated: boolean;

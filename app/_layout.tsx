@@ -17,14 +17,14 @@ import 'react-native-reanimated';
 import { colors } from '@/src/theme/theme';
 
 export const unstable_settings = {
-  // The tab group is the app's anchor; /setup sits outside it.
+  // The tab group is the app's anchor; /onboarding sits outside it.
   anchor: '(tabs)',
 };
 
 /**
  * Root layout: loads the brand fonts, forces the dark stack chrome, and
- * declares the two top-level routes — the main tab group and the temporary
- * setup screen (a stand-in until the scripted onboarding is built).
+ * declares the top-level routes — the main tab group, the scripted
+ * onboarding (first-run), and the pushed character/food screens.
  */
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -52,7 +52,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="setup" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="sera" />
         <Stack.Screen name="kael" />
         <Stack.Screen name="trainer" />

@@ -1,0 +1,597 @@
+/**
+ * The weight-loss onboarding script, as data — a linear walk of beats
+ * Kael and Sera narrate to assemble the user's team and collect exactly
+ * what the app needs to run. Text-forward (no voice-over, no portraits);
+ * every VOICE line from Meridian_Weight_Loss_Onboarding_Script_v1.md
+ * renders on screen. All copy here is pre-written and static — the Claude
+ * API only takes over once the user is in the product (script principle
+ * #6). {NAME}, {TRAINER}, {NS} tokens are interpolated by the controller.
+ *
+ * MVP scoping vs. the source script: Phase 0 (language + ToS) skipped,
+ * Phase 5 widget-picker replaced by the default Home layout, Phase 6
+ * auth/trial reduced to honest local-only framing. Trainer intros/commits
+ * and Elena's are transcribed from the script; the other seven NS
+ * intros/commits are drafted here to match each locked voice.
+ */
+
+import type { CharacterId } from '@/src/content/characters';
+
+/** Where a collected answer is destined — mapped to stores at finish. */
+export type OnboardingField =
+  | 'name'
+  | 'birthday'
+  | 'gender'
+  | 'goal'
+  | 'activity'
+  | 'whyNow'
+  | 'feeling'
+  | 'coaching';
+
+/** One numeric field in the Phase 1 numbers beat. */
+export interface NumberField {
+  key: 'height' | 'startingWeight' | 'goalWeight';
+  label: string;
+  unit: string;
+  placeholder: string;
+}
+
+/** A tappable card in a choice beat, with the speaker's reaction to it. */
+export interface CardOption {
+  value: string;
+  label: string;
+  hint?: string;
+  /** What the speaker says once this card is chosen. */
+  reaction: string[];
+  /** Shown but not selectable — out of V1 scope. */
+  disabled?: boolean;
+  disabledNote?: string;
+}
+
+/** The free-text escape hatch on the "feeling" beat ("Something else"). */
+export interface FreeTextOption {
+  label: string;
+  placeholder: string;
+  reaction: string[];
+}
+
+/** One step of the onboarding flow. */
+export type OnboardingBeat =
+  | { kind: 'say'; speaker: CharacterId; lines: string[]; skippable?: boolean }
+  | {
+      kind: 'text';
+      speaker: CharacterId;
+      field: 'name';
+      prompt: string;
+      placeholder: string;
+      ack: string[];
+    }
+  | { kind: 'date'; speaker: CharacterId; field: 'birthday'; prompt: string; ack: string[] }
+  | { kind: 'numbers'; speaker: CharacterId; prompt: string; fields: NumberField[]; ack: string[] }
+  | {
+      kind: 'cards';
+      speaker: CharacterId;
+      field: OnboardingField;
+      prompt: string;
+      options: CardOption[];
+      freeText?: FreeTextOption;
+    }
+  | {
+      kind: 'roster';
+      speaker: CharacterId;
+      role: 'trainer' | 'nutrition-specialist';
+      field: 'trainer' | 'ns';
+      prompt: string;
+    }
+  | { kind: 'finish'; speaker: CharacterId; lines: string[]; buttonLabel: string };
+
+/** A specialist's onboarding intro and commit line, in their voice. */
+export interface SpecialistOnboarding {
+  intro: string[];
+  commit: string[];
+}
+
+/**
+ * Intro + commit lines shown when a trainer or NS card is opened in the
+ * roster. Trainers and Elena are transcribed from the locked script; the
+ * remaining seven NS are drafted to each character's voice (Golden Test:
+ * culture is the lens, not the menu).
+ */
+export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = {
+  // Consultants never appear in a roster — present for type completeness.
+  kael: { intro: [], commit: [] },
+  sera: { intro: [], commit: [] },
+
+  // — Trainers (verbatim from script Scenes 3.3 / 3.4) —
+  cassidy: {
+    intro: [
+      'Hi, {NAME}.',
+      "I'm Cassidy. Before I tell you anything about how I work — I want you to know I've done this. I lost 40 kilos myself, slowly, the long way, when everyone around me was telling me to do it faster. So when I say I understand where you might be right now, I'm not guessing.",
+      "My job is honest. I won't sugarcoat things, but I won't shame you either. If you skip three sessions, I'll tell you. If you have a hard week, I'll meet you where you are and we move forward. The way this works is by being real with each other from day one.",
+      "And the lifestyle part — that's the only kind of fat loss I do. The quick kind is someone else's job. I build bodies you keep.",
+      'Take your time choosing. The right fit is the one you feel.',
+    ],
+    commit: [
+      "Alright, {NAME}. Let's do this together.",
+      "I'll see you in the Training Hub. We've got work to do.",
+    ],
+  },
+  tobias: {
+    intro: [
+      'Hello, {NAME}.',
+      "I'm Tobias. I work with people who want to lose weight — specifically with people who've thought about this more than once. Who already know what calories are. Who've tried things before. If that's you, we're going to get along.",
+      'My approach is a little different. I care less about the workouts themselves — those are the easy part — and more about why you eat at 11pm, how your sleep affects your hunger, what your stress does to your hormones. The body is downstream of behavior. We work on the behavior first.',
+      "I'd be honored to work with you if you choose me. But take your time. Meet the others. The fit matters more than you realize.",
+    ],
+    commit: ["Good. We'll work well together. I'll see you in the Training Hub when you're ready."],
+  },
+  marco: {
+    intro: [
+      'Hey, hey, {NAME}.',
+      "I'm Marco. I'm from São Paulo, and I grew up playing football in the streets before I fell in love with this whole world. Here's the thing about how I work — fitness should make your life better, not consume it. That's it. That's the whole philosophy.",
+      "For weight loss — we're going to move a lot, we're going to keep it interesting, and we're going to celebrate the wins along the way. Not because I'm trying to be fun for the sake of it, but because consistency comes easier when you actually want to show up.",
+      'Look around. Meet the others. Pick whoever feels right.',
+    ],
+    commit: ["Yes! Let's go. Come find me in the Training Hub — we've got things to do."],
+  },
+
+  // — Nutrition specialists —
+  nneka: {
+    intro: [
+      '{NAME}. Hello — good to meet you.',
+      "I'm Nneka. I grew up in Lagos, in a house where the food never stopped and nobody ate alone — jollof, egusi, beans, plantain, yam. Then I studied nutrition and spent years watching people be told that same food was the problem. So I built my practice to prove what my grandmother already knew: the food isn't the enemy. Portions, timing — those we can talk about. The food itself carries good sense.",
+      "Here's how I work. I'm not going to take your own food away and hand you some foreign plan — that's the opposite of the point. I work with whatever you actually eat. I just bring a West African eye to it: honest portions, real fuel, no shame. We lose the weight with your food, not in spite of it.",
+      'Meet the others if you like, my dear. No wahala. The right one is whoever you keep wanting to talk to.',
+    ],
+    commit: [
+      "Ah, good. We're going to do this well together.",
+      "Come find me in the Diet Corner — anything you eat, anything you're wondering about, bring it. Small small, every day. I'll be there.",
+    ],
+  },
+  kavya: {
+    intro: [
+      'Haan — hello, {NAME}. Good to meet you.',
+      "I'm Kavya, from Delhi. I grew up between my mother's kitchen and one stubborn question: why does everyone treat roti like the enemy and a protein bar like medicine? I studied nutrition to answer it properly — and the answer made me sharper. Dal and rice make a complete protein. Curd was probiotic before anyone put the word on a label. Everyday Indian food, balanced the way households have balanced it for centuries, already works.",
+      "So here's how I work. I'm not taking your food away to give you sad diet plates — bas, no. I work with whatever you actually eat. I bring the why to it: what's already good on your plate, what's quietly costing you, where the small fix is. We lose the weight through your food, not around it.",
+      'Meet the others if you want, beta. The right one is whoever you keep coming back to.',
+    ],
+    commit: [
+      "Haan. Good — let's do this properly, together.",
+      "Come find me in the Diet Corner. Anything you eat, anything you've been told and never believed — bring it to me.",
+    ],
+  },
+  haruki: {
+    intro: [
+      'Hello, {NAME}.',
+      "I'm Haruki. Kyoto. I grew up with small meals — fish, rice, miso, something green. Nothing extra, nothing missing. I studied nutrition and found the science mostly agreed with my grandmother's table. So that is how I work. Simply.",
+      'I will not replace your food with mine. I work with whatever you eat. I bring one thing to it — balance you can feel, not count. A good plate needs no defending. We build those, quietly, and the weight follows.',
+      'Meet the others if you wish. The right one is the one you keep returning to. No rush.',
+    ],
+    commit: [
+      'Good. We will work well together.',
+      "I'll be in the Diet Corner. Bring me what you eat — one plate at a time. That is enough.",
+    ],
+  },
+  sofia: {
+    intro: [
+      '¡Hola, {NAME}! Qué gusto — so good to meet you.',
+      "I'm Sofía, from Guadalajara. My family's kitchen never stopped — beans on the stove, tortillas by hand, salsa from whatever the market had. I studied nutrition and came home a little angry: the world had turned my food into a diet villain and sold sad bowls of nothing as 'health.' So my practice is the correction. Beans and corn are one of the oldest complete proteins on earth. Real Mexican food, built the way it's always been built, is on your side.",
+      "So this is how I work, cariño. I'm not going to take your food away — never. I work with whatever you actually eat. I bring my eye to it: what's already beautiful on your plate, and the one or two things we gently adjust. We lose the weight and we enjoy the food. Both. Always both.",
+      'Ándale — meet the others if you like. The right one is whoever you keep wanting to hear from.',
+    ],
+    commit: [
+      '¡Sí! Qué bueno. We are going to enjoy this together, cariño.',
+      "Come find me in the Diet Corner — anything you eat, anything you love, bring it. I'll be right there.",
+    ],
+  },
+  yasmin: {
+    intro: [
+      'Hello, {NAME}. A pleasure.',
+      "I'm Yasmin, from Beirut. I grew up at a table that never seemed to end — hummus, tabbouleh, labneh, olive oil over everything, food meant to be shared and lingered over. I studied nutrition abroad and watched the industry slowly 'discover' what my grandmother's table always knew: legumes, herbs, olive oil, vegetables at the center. I came home with credentials and a little amusement. My cuisine never needed rescuing. Only recognizing.",
+      "So, how I work. I won't hand you a plan of only Lebanese food and take your own away — that would miss the point entirely. I work with whatever you eat. I bring my eye to it: elegance and health were never opposites, and most of what you enjoy is already working in your favor. We find the one thing that isn't, and adjust it gently.",
+      "Meet the others if you'd like, habibti. The right one is whoever you keep wanting to return to.",
+    ],
+    commit: [
+      "Lovely. Yalla — we'll do this beautifully, together.",
+      "I'll be in the Diet Corner. Bring me anything you eat, anything you're curious about. I'll be there, habibti.",
+    ],
+  },
+  elena: {
+    intro: [
+      'Yia sou, {NAME}. Hello.',
+      "I'm Elena. I grew up on my family's olive farm in Greece — every meal of my childhood was built around what was growing that season. Tomatoes in summer, oranges in winter, olives always. I studied nutrition because I wanted to understand why the food I grew up with was so good for you. Turns out the science agrees with the grandmothers. Usually does.",
+      "Here's how I work. I'm not going to make you eat only Greek food. I work with whatever you actually eat — that's the whole point of meeting you where you are. But the way I think about food comes from my tradition: seasonal, simple, joyful, shared. I'll bring that lens to whatever you put in front of me.",
+      "And one more thing — I won't make food a chore. The Mediterranean way is that eating is one of life's actual pleasures. We can lose weight, build a body you love, and enjoy what's on your plate. Anyone telling you those three can't happen together hasn't been to Greece.",
+      "Meet the others if you'd like. The right one for you is whoever you keep wanting to hear from.",
+    ],
+    commit: [
+      'Yes. Good, {NAME}. We are going to enjoy this together.',
+      "I'll see you in the Diet Corner. Come find me when you want to talk about food — anything you eat, anything you're curious about, anything you've been told and never quite believed. I'll be there.",
+    ],
+  },
+  jordan: {
+    intro: [
+      'Hey, {NAME}. Good to meet you.',
+      "I'm Jordan. Austin, Texas. I grew up on BBQ, Tex-Mex, drive-thrus, and church potlucks — the actual American food landscape, not the wellness-magazine version. Then I studied nutrition and spent years coaching regular people: folks who eat out constantly, snack at their desks, and have been made to feel guilty about all of it. I don't do the guilt. I work with reality — your schedule, your budget, your actual taste buds.",
+      "So here's the deal. I'm not here to change what you eat. I'm here to change how you think about it. I work with whatever's already on your plate, and we make it a little better than last month, most of the time. That's the whole trick, and it's the one that lasts.",
+      "Go meet the others if you want — no pressure. The right fit's the one you keep wanting to talk to.",
+    ],
+    commit: [
+      "Alright — cool. Let's do this.",
+      "Come find me in the Diet Corner. Whatever you eat, log it, bring it — no confession booth. I've got you.",
+    ],
+  },
+  'mei-lin': {
+    intro: [
+      "Hello, {NAME}. Good — let's meet properly.",
+      "I'm Mei Lin, from Chengdu, a city that takes food as seriously as anywhere on earth. I grew up between my grandmother's medicinal soups and the roar of Sichuan peppercorns, and I learned early that Chinese cooking is a whole philosophy: balance of flavors, balance of temperaments, food as daily medicine. I studied nutrition formally and found it half catching up to what my tradition systematized centuries ago.",
+      "So this is how I work. I won't replace your food with mine — that's not the point. I work with whatever you eat. But I bring one conviction to it: if the food has no soul, the plan has no future. People abandon joyless eating every time. So we keep the flavor and lose the weight. That isn't a contradiction — it's the strategy.",
+      'Hm — meet the others if you like. The right one is whoever you keep wanting to hear from.',
+    ],
+    commit: [
+      "Good. We're going to do this properly — with flavor.",
+      "Find me in the Diet Corner. Bring me what you eat, and we'll balance it together. I'll be there.",
+    ],
+  },
+};
+
+/**
+ * Cuisine tradition per nutrition specialist — seeds
+ * `userProfile.culturalBackground` from the NS choice so the team has a
+ * cultural read from day one (the NS refines it during their own intake).
+ */
+export const NS_TRADITION: Partial<Record<CharacterId, string>> = {
+  nneka: 'West African',
+  kavya: 'South Asian',
+  haruki: 'Japanese',
+  sofia: 'Mexican',
+  yasmin: 'Middle Eastern (Lebanese)',
+  elena: 'Mediterranean (Greek)',
+  jordan: 'American',
+  'mei-lin': 'Chinese',
+};
+
+/** The ordered onboarding walk for the weight-loss path. */
+export const WEIGHT_LOSS_ONBOARDING: OnboardingBeat[] = [
+  // — PHASE 1: Kael, welcome + core data —
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      'Hey.',
+      "I'm Kael. Welcome to Meridian.",
+      "Meridian's a team of specialists — the best at what they do — who came together to make their expertise personal. That team, starting now, is yours.",
+      "I just need a few basics before I bring everyone in. Won't take long.",
+    ],
+  },
+  {
+    kind: 'text',
+    speaker: 'kael',
+    field: 'name',
+    prompt: 'What should I call you?',
+    placeholder: 'Your name',
+    ack: ['{NAME}. Good to meet you.'],
+  },
+  {
+    kind: 'date',
+    speaker: 'kael',
+    field: 'birthday',
+    prompt: "When's your birthday?",
+    ack: ['Got it. Noted.'],
+  },
+  {
+    kind: 'cards',
+    speaker: 'kael',
+    field: 'gender',
+    prompt: 'How do you identify?',
+    options: [
+      { value: 'male', label: 'Male', reaction: ['Got it.'] },
+      { value: 'female', label: 'Female', reaction: ['Got it.'] },
+      { value: 'non-binary', label: 'Non-binary', reaction: ['Got it.'] },
+      { value: 'prefer-not', label: 'Prefer not to say', reaction: ['Got it.'] },
+    ],
+  },
+  {
+    kind: 'cards',
+    speaker: 'kael',
+    field: 'goal',
+    prompt:
+      'Okay, {NAME}. This one shapes everything we set up for you. What’s the main thing you want to work on?',
+    options: [
+      {
+        value: 'weight-loss',
+        label: 'Lose weight',
+        reaction: [
+          "Okay. That's a real one.",
+          "We'll build this properly. Not fast — properly. There's a difference, and it matters.",
+        ],
+      },
+      {
+        value: 'build-muscle',
+        label: 'Build muscle',
+        reaction: [],
+        disabled: true,
+        disabledNote: 'Coming soon — V1 is built around weight loss.',
+      },
+      {
+        value: 'general-fitness',
+        label: 'General fitness',
+        reaction: [],
+        disabled: true,
+        disabledNote: 'Coming soon — V1 is built around weight loss.',
+      },
+    ],
+  },
+  {
+    kind: 'cards',
+    speaker: 'kael',
+    field: 'activity',
+    prompt: 'Quick one — how active is your day-to-day, outside of any workouts?',
+    options: [
+      {
+        value: 'sedentary',
+        label: 'Sedentary',
+        hint: 'Mostly sitting through the day',
+        reaction: ["Okay. Then we make the movement we do add count."],
+      },
+      {
+        value: 'light',
+        label: 'Lightly active',
+        hint: 'Some walking, light movement',
+        reaction: ['Right. That helps.'],
+      },
+      {
+        value: 'moderate',
+        label: 'Moderately active',
+        hint: 'On my feet, regular movement',
+        reaction: ["Good. That gives us something to build on."],
+      },
+      {
+        value: 'active',
+        label: 'Very active',
+        hint: 'Physical job or hard daily training',
+        reaction: ["Strong. I'll account for that so we don't overcook the week."],
+      },
+    ],
+  },
+  {
+    kind: 'numbers',
+    speaker: 'kael',
+    prompt: "A couple of numbers and I've got what I need to set your targets.",
+    fields: [
+      { key: 'height', label: 'Height', unit: 'cm', placeholder: 'e.g. 175' },
+      { key: 'startingWeight', label: 'Current weight', unit: 'kg', placeholder: 'e.g. 82' },
+      { key: 'goalWeight', label: 'Goal weight', unit: 'kg', placeholder: 'e.g. 74' },
+    ],
+    ack: ["Good. That's everything I need."],
+  },
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      "Before I bring your team in, there's one more person I want you to meet first. She covers the part I don't.",
+      'Sera.',
+    ],
+  },
+
+  // — PHASE 2: Sera, emotional + behavioral —
+  {
+    kind: 'say',
+    speaker: 'sera',
+    skippable: true,
+    lines: [
+      'Hey, {NAME}.',
+      'Kael handles your schedule, your data, all the structure of this. I handle the other side — how you’re actually feeling, what’s underneath the goal, the habits that quietly run everything. That part.',
+    ],
+  },
+  {
+    kind: 'cards',
+    speaker: 'sera',
+    field: 'whyNow',
+    prompt: 'Quick question, {NAME} — honest answer, not the polished one. Why now?',
+    options: [
+      {
+        value: "It's been building for a while",
+        label: "It's been building for a while",
+        reaction: [
+          "Mm. Yeah. That's how it usually is, honestly. Months of small thoughts, then one day you're just ready. Or ready enough. That's a real place to start from.",
+        ],
+      },
+      {
+        value: 'Something specific happened',
+        label: 'Something specific happened',
+        reaction: [
+          "Okay. Sometimes it takes that. Not always, but sometimes. We'll work with where it brought you, not where it came from.",
+        ],
+      },
+      {
+        value: "I'm ready and that's enough",
+        label: "I'm ready and that's enough",
+        reaction: [
+          "Good. That's actually... yeah, that's enough. Not everyone walks in with that. We'll use it.",
+        ],
+      },
+      {
+        value: "Honestly, I'm not sure",
+        label: "Honestly, I'm not sure",
+        reaction: [
+          "That's a fair answer. We'll figure it out as we go — sometimes the reason becomes clearer once you start moving. Don't worry about naming it today.",
+        ],
+      },
+    ],
+  },
+  {
+    kind: 'cards',
+    speaker: 'sera',
+    field: 'feeling',
+    prompt: 'How are you feeling, right now, about where you’re starting from?',
+    options: [
+      {
+        value: 'Frustrated',
+        label: 'Frustrated',
+        reaction: [
+          "Okay. That's worth naming. Frustration usually means you've tried before and something didn't stick. We'll figure out what.",
+        ],
+      },
+      {
+        value: 'Hopeful',
+        label: 'Hopeful',
+        reaction: [
+          "Good. Hopeful is one of the best ways to walk in here. Means you haven't been broken by previous attempts — or you have, and you put yourself back together enough to try again. That matters.",
+        ],
+      },
+      {
+        value: 'Tired of trying',
+        label: 'Tired of trying',
+        reaction: [
+          "Mm. Yeah. I hear that a lot, and I take it seriously. We're going to do this differently than whatever you tried before. That's a promise.",
+        ],
+      },
+      {
+        value: 'Honestly, just ready',
+        label: 'Honestly, just ready',
+        reaction: ["Then let's go. That's the right energy."],
+      },
+    ],
+    freeText: {
+      label: 'Something else',
+      placeholder: 'In your own words…',
+      reaction: [
+        "Okay. Thank you for putting it in your own words — that tells me more than any of the tidy options would. I'll hold onto it.",
+      ],
+    },
+  },
+  {
+    kind: 'cards',
+    speaker: 'sera',
+    field: 'coaching',
+    prompt: 'Last one, {NAME}. When things get hard — and they will — what do you need from us?',
+    options: [
+      {
+        value: 'push',
+        label: "Push me. Don't let me off easy.",
+        reaction: ["Got it. Direct it is. I'll match that — and so will your trainer."],
+      },
+      {
+        value: 'support',
+        label: 'Support me. I respond better to encouragement.',
+        reaction: ["Okay. Encouragement-led. That's a real style and a valid one — we'll lean that way."],
+      },
+      {
+        value: 'both',
+        label: 'A bit of both, depending on the moment.',
+        reaction: ["That's most people, honestly. I'll read the room."],
+      },
+      {
+        value: 'read-as-we-go',
+        label: "I'm not sure yet — read me as we go.",
+        reaction: [
+          "Honestly, that's the most self-aware answer you could give me. Most people pick one and they're wrong about themselves. Letting me read you means I'll get it right — because I'll be paying attention.",
+        ],
+      },
+    ],
+  },
+  {
+    kind: 'say',
+    speaker: 'sera',
+    skippable: true,
+    lines: [
+      "Alright. That's what I needed for now. I'll be around — quieter than Kael usually, but always there when you need me. And sometimes when you don't realize you do.",
+      'Kael — back to you.',
+    ],
+  },
+
+  // — PHASE 3: Trainer selection —
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      'Alright. Now we put the rest of your team together. First — your trainer.',
+      "Based on what you've told us — losing weight, building this into a lifestyle — I've got three people I think you should meet. Each of them could work with you. The right one is whoever feels right to you, not whoever I think is best on paper.",
+    ],
+  },
+  {
+    kind: 'roster',
+    speaker: 'kael',
+    role: 'trainer',
+    field: 'trainer',
+    prompt: "Tap whoever you'd like to meet. They'll introduce themselves.",
+  },
+
+  // — PHASE 4: NS selection —
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      'Good pick.',
+      'Now — onto the next part. This one might be the most interesting, because food is where most people quietly sabotage themselves without realizing it. The Diet Corner is where your nutrition specialist lives. They handle everything you eat — what, when, how much, and why.',
+      "Unlike trainers, who specialize by goal, nutrition specialists specialize by culture. Because food isn't just fuel. It's where you come from. It's what your grandmother made you. It's what you actually enjoy.",
+      "You've got eight specialists, each from a different food tradition. I'm not going to pre-pick this time — too personal. Take a look. When you find the right one, choose them.",
+    ],
+  },
+  {
+    kind: 'roster',
+    speaker: 'kael',
+    role: 'nutrition-specialist',
+    field: 'ns',
+    prompt: "Tap whoever you'd like to meet.",
+  },
+
+  // — PHASE 5: Team wrap + Home —
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      'Alright, {NAME}. So we’ve got it.',
+      'Me — your consultant, your operations. Sera, alongside me, for the mental side. {TRAINER} as your trainer, building you a body you keep. {NS} in the Diet Corner, working with whatever you eat. That’s your team.',
+    ],
+  },
+  {
+    kind: 'say',
+    speaker: 'sera',
+    lines: ['Good team for what you said you wanted, {NAME}. Honestly.'],
+  },
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      "One last thing before we set you loose. I've set up your Home — that's where you'll land every time you open Meridian. Your calories, your weigh-in, your streak, a daily note from {NS}. You can change any of it later. It's your space.",
+    ],
+  },
+
+  // — PHASE 6: Close (local-only, no auth/paywall) —
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      'Alright. Take a breath. Look at this.',
+      'This is your team. You and me on operations. Sera on the human side. {TRAINER} in your corner for training. {NS} working with what you eat. And me, watching the whole picture, making sure nothing falls through the cracks.',
+    ],
+  },
+  {
+    kind: 'say',
+    speaker: 'sera',
+    lines: ["You showed up today, {NAME}. That part's done. Tomorrow we start."],
+  },
+  {
+    kind: 'say',
+    speaker: 'kael',
+    skippable: true,
+    lines: [
+      "That's it for setup. No sign-ups, no card — everything you build here stays on your device for now.",
+      'Welcome to Meridian, {NAME}. Your team’s ready when you are.',
+    ],
+  },
+  {
+    kind: 'finish',
+    speaker: 'kael',
+    lines: ["Here's your Home."],
+    buttonLabel: 'Enter Meridian',
+  },
+];
