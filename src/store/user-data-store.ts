@@ -56,6 +56,8 @@ interface UserDataState extends SharedUserData {
    * at which they had a chance to weave the event's context in.
    */
   markEventSeen: (eventId: string, characterId: CharacterId) => void;
+  /** Marks a user-facing event (e.g. a morning brief) as opened by the user. */
+  markEventDelivered: (eventId: string) => void;
   /**
    * Trainer-owned workout actions. All operate on programmeState.
    * setCurrentPlan replaces the day's plan; the session-lifecycle actions
@@ -112,6 +114,14 @@ export const useUserDataStore = create<UserDataState>()(
           events: state.events.map((e) =>
             e.id === eventId && !e.seenBy.includes(characterId)
               ? { ...e, seenBy: [...e.seenBy, characterId] }
+              : e,
+          ),
+        })),
+      markEventDelivered: (eventId) =>
+        set((state) => ({
+          events: state.events.map((e) =>
+            e.id === eventId && e.deliveredAt === undefined
+              ? { ...e, deliveredAt: Date.now() }
               : e,
           ),
         })),

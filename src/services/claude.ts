@@ -204,6 +204,25 @@ export async function getReturnGreeting(
 }
 
 /**
+ * Sends a single ephemeral directive as the user turn and returns the
+ * character's reply — no thread history, all context comes from the
+ * system prompt (character voice + team context). The generic shape
+ * behind proactive messages like Kael's morning brief; reusable for any
+ * character's directed note (a future Sera check-in, etc.).
+ *
+ * @param characterId who is speaking
+ * @param userName how to address the user
+ * @param directive the (unpersisted, unshown) instruction for this message
+ */
+export async function getDirectedMessage(
+  characterId: CharacterId,
+  userName: string,
+  directive: string,
+): Promise<string> {
+  return requestText(characterId, userName, [{ role: 'user', content: directive }]);
+}
+
+/**
  * Maps an SDK error to a short, in-character-adjacent notice the thread
  * can show. Detailed diagnostics stay in the console for the developer.
  */

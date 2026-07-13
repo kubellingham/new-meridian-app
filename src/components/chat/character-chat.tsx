@@ -42,6 +42,14 @@ type CharacterChatProps = {
   placeholder: string;
   /** Show a back control — for surfaces pushed over the tabs. */
   showBack?: boolean;
+  /**
+   * A proactive opening message (e.g. Kael's morning brief) to seed this
+   * visit with instead of the scripted greeting. Appended once on visit
+   * init; onOpeningDelivered fires so the caller can mark it delivered.
+   */
+  pendingOpening?: { id: string; text: string };
+  /** Called with the opening's id after it's been shown. */
+  onOpeningDelivered?: (id: string) => void;
 };
 
 /** How recently the user must have visited to skip the API return greeting. */
@@ -89,6 +97,8 @@ export function CharacterChat({
   returnGreeting,
   placeholder,
   showBack,
+  pendingOpening,
+  onOpeningDelivered,
 }: CharacterChatProps) {
   const name = useUserStore((s) => s.name);
   const threads = useChatStore((s) => s.threads);
@@ -129,6 +139,14 @@ export function CharacterChat({
 
     setVisitStart(boundary);
     setLastVisit(characterId, now);
+
+    // A proactive opening (e.g. a morning brief) takes precedence over any
+    // scripted greeting — it IS Kael's opening line for this visit.
+    if (pendingOpening) {
+      append(characterId, assistantMessage(pendingOpening.text));
+      onOpeningDelivered?.(pendingOpening.id);
+      return;
+    }
 
     if (boundary === 0) {
       // First-ever visit — scripted first-meeting greeting, no API.

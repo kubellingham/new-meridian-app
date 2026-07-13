@@ -230,6 +230,12 @@ export interface TeamEvent {
   summary: string; // short human-readable line — what the deciding specialist would say
   reasoning?: string; // optional "why" — for the affected specialist to reference in-voice
   seenBy: CharacterId[]; // characters (from `to`) who have processed this event
+  /**
+   * For events that surface to the USER (e.g. a morning brief) — set once
+   * the user has opened it. Undefined means it's still waiting on Home.
+   * Distinct from seenBy, which tracks specialist-to-specialist processing.
+   */
+  deliveredAt?: number;
 }
 
 /** The top-level shape held by the store. Categories default to empty objects. */

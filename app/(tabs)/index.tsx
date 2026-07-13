@@ -1,8 +1,18 @@
 import { router } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { TeamNoteCard } from '@/src/components/home/team-note-card';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
+import { isClaudeConfigured } from '@/src/services/claude';
+import {
+  generateMorningBrief,
+  makeMorningBriefEvent,
+  todaysBrief,
+  undeliveredBrief,
+} from '@/src/services/morning-brief';
+import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
 
@@ -20,6 +30,33 @@ export default function HomeScreen() {
   const nsId = useUserStore((s) => s.nsId);
   const ns = nsId ? getCharacter(nsId) : null;
 
+  const events = useUserDataStore((s) => s.events);
+  const hasDataHydrated = useUserDataStore((s) => s.hasHydrated);
+  const emitEvent = useUserDataStore((s) => s.emitEvent);
+  // Guards against firing a second generation while the first is in flight.
+  const generatingBrief = useRef(false);
+
+  // Once per local day, after hydration, Kael prepares a morning brief.
+  // It's generated quietly in the background; the Home card appears when
+  // it's ready. No brief on a fresh account without an API key.
+  useEffect(() => {
+    if (!hasDataHydrated || generatingBrief.current) return;
+    if (!isClaudeConfigured()) return;
+    if (todaysBrief(events)) return; // already have today's
+
+    generatingBrief.current = true;
+    generateMorningBrief(name)
+      .then((text) => emitEvent(makeMorningBriefEvent(text)))
+      .catch((error) => console.warn('Morning brief generation failed:', error))
+      .finally(() => {
+        generatingBrief.current = false;
+      });
+    // Intentionally keyed on hydration; events/name read at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDataHydrated]);
+
+  const pendingBrief = undeliveredBrief(events);
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -28,6 +65,15 @@ export default function HomeScreen() {
         <AppText variant="label" style={styles.subheading}>
           Here&apos;s where things stand.
         </AppText>
+
+        {/* Kael's morning brief — a passive note, tap to open his chat. */}
+        {pendingBrief && (
+          <TeamNoteCard
+            from="Kael"
+            preview={pendingBrief.summary}
+            onOpen={() => router.push('/kael')}
+          />
+        )}
 
         {/* Consultant entry points — temporary placement until Home widgets
             are designed properly; the goal is that both are reachable. */}
