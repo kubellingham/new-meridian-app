@@ -72,3 +72,8 @@ jobs:
           # bodies are noise in the EAS Update list.
           SHORT_MESSAGE="$(printf '%s' "$UPDATE_MESSAGE" | head -n 1 | cut -c1-200)"
           eas update --branch development --environment development --message "$SHORT_MESSAGE"
+          # Testers ride the preview channel — same JS, preview env vars
+          # (proxy URL + app token; no vendor keys). Tolerated to fail
+          # until the preview environment exists in the Expo dashboard.
+          eas update --branch preview --environment preview --message "$SHORT_MESSAGE" || \
+            echo "preview channel update skipped (environment not configured yet)"

@@ -38,23 +38,23 @@ Built so far:
 
 ```bash
 npm install
-cp .env.example .env   # then paste your API keys (see below)
+cp .env.example .env   # then fill in (see below)
 npx expo start         # scan the QR code with Expo Go on Android
 ```
 
-`.env` takes two keys, both optional:
+### How the app reaches Claude
 
-- `EXPO_PUBLIC_ANTHROPIC_API_KEY` — the conversations. Without it, every
-  character shows as offline.
-- `EXPO_PUBLIC_ELEVENLABS_API_KEY` — spoken replies. Without it, the app is
-  text-only and the mute toggle is hidden.
+Distribution builds call Meridian's own proxy — `api/claude.js`, deployed
+with the Vercel project. The client carries only the proxy URL and a
+shared app token (`EXPO_PUBLIC_MERIDIAN_PROXY_URL` /
+`EXPO_PUBLIC_MERIDIAN_APP_TOKEN`); the real `ANTHROPIC_API_KEY` lives in
+Vercel server env and never enters any bundle. Rotating the app token in
+Vercel instantly cuts off old builds.
 
-### API keys — MVP only
-
-Both keys ship inside the client bundle. That is an explicit MVP decision
-for **personal testing only** (brief §12). A backend proxy must replace
-them before any public build — especially the ElevenLabs key, which bills
-by usage and can be drained if leaked. Never commit `.env`.
+For **local development only**, a direct `EXPO_PUBLIC_ANTHROPIC_API_KEY`
+still works as a fallback. Never set it in a build handed to anyone else,
+and never commit `.env`. `EXPO_PUBLIC_ELEVENLABS_API_KEY` (spoken
+replies) is likewise dev-only — tester builds run text-only.
 
 ## Deployment
 
@@ -65,28 +65,66 @@ laptop, and not the Claude sandbox (whose network policy blocks
 
 ### EAS Update — over-the-air JS to Android
 
-- `eas.json` defines one build profile, `development`: an internal-
-  distribution APK dev client on the `development` channel and EAS
-  environment.
-- `.github/workflows/eas-dev-build.yml` (manual, "Run workflow") links the
-  Expo project and builds the dev-client APK on EAS. You install that APK
-  once. Only needed again when native code/deps change.
-- `.github/workflows/eas-update.yml` (on push) publishes an OTA JS update to
-  the `development` branch. The dev client picks it up on next open.
-- Requires repo secret `EXPO_TOKEN`. The Anthropic key is read at
-  build/update time from an EAS environment variable
-  `EXPO_PUBLIC_ANTHROPIC_API_KEY` (environment: `development`), so the
-  bundle ships with a working key — same client-side-key MVP caveat below.
+- `eas.json` defines two build profiles: `development` (dev-client APK,
+  `development` channel) and `preview` (the standalone tester APK,
+  `preview` channel).
+- `.github/workflows/eas-dev-build.yml` (manual) builds the dev client;
+  `.github/workflows/eas-preview-build.yml` (manual) builds the tester
+  APK. Rebuild only when native code/deps or the app version change.
+- `.github/workflows/eas-update.yml` (on push) publishes an OTA JS update
+  to **both** channels, so testers get fixes on next app open.
+- Requires repo secret `EXPO_TOKEN`. Each channel reads its EAS
+  environment: `development` may carry the dev-only direct key;
+  `preview` carries ONLY the proxy URL, app token, and Sentry DSN.
 
-### Vercel — shareable web build
+### Vercel — proxy + shareable web build
 
-- `vercel.json` builds with `npx expo export --platform web` (static output
-  in `dist/`, `cleanUrls` on so `/kael` serves `kael.html`).
-- Vercel auto-deploys on push once the GitHub repo is connected.
-- Set `EXPO_PUBLIC_ANTHROPIC_API_KEY` as a Vercel Project environment
-  variable so the web bundle can reach Claude. Because a public web URL
-  exposes an embedded key to anyone, keep Vercel Deployment Protection on
-  until the backend proxy lands.
+- `vercel.json` builds the static web export AND deploys `api/claude.js`
+  (the Claude proxy); `/v1/messages` rewrites to it so the client SDK
+  works unchanged.
+- Vercel project env needs `ANTHROPIC_API_KEY` (server-side, the real
+  key) and `MERIDIAN_APP_TOKEN` (matches the client token).
+- The web bundle no longer embeds vendor keys; keep Deployment
+  Protection on anyway so the web preview stays private.
+
+## Tester round — launch checklist
+
+One-time setup, in order (nothing here can run from the Claude sandbox):
+
+1. **Rotate keys.** Create a fresh Anthropic API key and delete the old
+   one (it shipped in earlier dev bundles). Same for ElevenLabs and the
+   Expo token if they ever left your machine.
+2. **Anthropic spend cap.** Console → Billing → set a hard monthly limit
+   you're comfortable losing. This is the real cost ceiling.
+3. **Vercel env.** Project → Settings → Environment Variables: add
+   `ANTHROPIC_API_KEY` (the fresh key) and `MERIDIAN_APP_TOKEN` (invent a
+   long random string). Redeploy. Sanity-check with:
+   `curl -s -X POST https://<your-app>.vercel.app/v1/messages -H 'x-api-key: wrong' -d '{}'`
+   → should return the 401 JSON.
+4. **Expo preview environment.** Expo dashboard → project → Environment
+   variables → environment `preview`: `EXPO_PUBLIC_MERIDIAN_PROXY_URL`
+   (the Vercel URL), `EXPO_PUBLIC_MERIDIAN_APP_TOKEN` (same string as
+   Vercel), and `EXPO_PUBLIC_SENTRY_DSN` (from step 5). Do NOT add vendor
+   keys here.
+5. **Sentry.** Create a free project (React Native), copy the DSN into
+   the Expo `preview` environment. Update the org/project names under the
+   `@sentry/react-native/expo` plugin in `app.json` if you want sourcemap
+   uploads later.
+6. **Your WhatsApp number.** In `app.json` → `extra.feedbackWhatsApp`,
+   replace the placeholder with your number in international digits-only
+   form (e.g. `2557XXXXXXXX`). The Send feedback button stays politely
+   disabled until you do.
+7. **Build.** GitHub → Actions → "EAS preview build (tester APK)" → Run
+   workflow. When EAS finishes, share the build's install link (or the
+   APK) with your friends.
+8. **Watch the first days.** Vercel → Logs shows one line per Claude call
+   with token counts; Anthropic Console shows spend; Sentry shows
+   crashes. If anything runs away, rotating `MERIDIAN_APP_TOKEN` in
+   Vercel kills all builds instantly.
+
+What testers get: the full app over the proxy, text-only (no voice),
+with the feedback button and crash reporting. What they never get:
+vendor API keys.
 
 ## Tests
 

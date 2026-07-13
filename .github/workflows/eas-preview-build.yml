@@ -1,0 +1,44 @@
+# Builds the standalone tester APK (the one you share with friends).
+#
+# Runs on GitHub's infrastructure — NOT the Claude sandbox, whose egress
+# policy blocks api.expo.dev. Trigger by hand from the GitHub "Actions"
+# tab ("Run workflow"). Rebuild only when native code/deps or the app
+# version change; everyday JS fixes reach testers via eas-update.yml on
+# the "preview" channel.
+#
+# Before the first run, create the "preview" EAS environment in the Expo
+# dashboard with:
+#   EXPO_PUBLIC_MERIDIAN_PROXY_URL   — the Vercel deployment URL
+#   EXPO_PUBLIC_MERIDIAN_APP_TOKEN   — matches MERIDIAN_APP_TOKEN in Vercel
+#   EXPO_PUBLIC_SENTRY_DSN           — from the Sentry project (optional)
+# Deliberately absent: EXPO_PUBLIC_ANTHROPIC_API_KEY and the ElevenLabs
+# key — tester builds carry no vendor secrets and run text-only.
+name: EAS preview build (tester APK)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android tester APK
+        run: eas build --platform android --profile preview --non-interactive --no-wait
