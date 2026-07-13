@@ -8,6 +8,7 @@ import {
   exerciseInputMode,
   FeelingPicker,
   type LoggedSetValues,
+  RestTimer,
   SetLogRow,
 } from '@/src/components/workout';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
@@ -17,6 +18,9 @@ import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
 import type { SetLog, WorkoutSession } from '@/src/types/user-data';
+
+/** Fallback rest between sets when the trainer didn't prescribe one. */
+const DEFAULT_REST_SECONDS = 60;
 
 /**
  * The workout runner — one exercise in focus, set-by-set logging,
@@ -45,6 +49,8 @@ export default function WorkoutRunnerScreen() {
   const [sessionNote, setSessionNote] = useState('');
   const [exerciseNote, setExerciseNote] = useState('');
   const [exerciseNoteFor, setExerciseNoteFor] = useState<string | null>(null);
+  // Seconds to rest, shown as a countdown after logging a set. Null hides it.
+  const [restSeconds, setRestSeconds] = useState<number | null>(null);
 
   const exercises = currentPlan?.exercises ?? [];
   const logs = currentSession?.logs ?? [];
@@ -110,25 +116,33 @@ export default function WorkoutRunnerScreen() {
       durationSeconds: values.durationSeconds,
     };
     logSet(currentExercise.id, set);
+    const reachedTarget = setNumber >= targetSets;
     // Reaching the prescribed count reads as done; below it, in-progress.
     // Sets aren't mandatory, so this is a hint, not a gate.
-    if (setNumber >= targetSets) {
-      updateExerciseLog(currentExercise.id, { status: 'completed' });
+    updateExerciseLog(currentExercise.id, {
+      status: reachedTarget ? 'completed' : 'in-progress',
+    });
+    // Kick off a rest countdown between sets — not after the last one, and
+    // not for timed holds (the set itself already tracks time).
+    if (!reachedTarget && inputMode !== 'timed') {
+      setRestSeconds(currentExercise.restSeconds ?? DEFAULT_REST_SECONDS);
     } else {
-      updateExerciseLog(currentExercise.id, { status: 'in-progress' });
+      setRestSeconds(null);
     }
   }
 
-  /** Removes one set (un-tick or swipe-delete). */
+  /** Removes one set (un-tick or swipe-delete). Clears any running rest. */
   function handleRemoveSet(setNumber: number) {
     if (!currentExercise) return;
     removeSet(currentExercise.id, setNumber);
+    setRestSeconds(null);
   }
 
   /** Marks the exercise skipped and advances. */
   function handleSkip() {
     if (!currentExercise) return;
     updateExerciseLog(currentExercise.id, { status: 'skipped' });
+    setRestSeconds(null);
     if (isLastExercise) setShowSummary(true);
     else setOrdinal(ordinal + 1);
   }
@@ -142,6 +156,7 @@ export default function WorkoutRunnerScreen() {
     if (currentExercise && currentLog && currentLog.sets.length > 0 && currentLog.status !== 'skipped') {
       updateExerciseLog(currentExercise.id, { status: 'completed' });
     }
+    setRestSeconds(null);
     if (isLastExercise) {
       setShowSummary(true);
     } else {
@@ -264,6 +279,14 @@ export default function WorkoutRunnerScreen() {
             />
           );
         })}
+
+        {restSeconds !== null && (
+          <RestTimer
+            key={`rest-${currentExercise.id}-${setsLogged}`}
+            seconds={restSeconds}
+            onDone={() => setRestSeconds(null)}
+          />
+        )}
 
         <View style={styles.subActions}>
           <Pressable onPress={toggleExerciseNote} style={styles.subAction} testID="toggle-note">
