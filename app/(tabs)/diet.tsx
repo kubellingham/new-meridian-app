@@ -1,20 +1,66 @@
-import { CharacterChat } from '@/src/components/chat/character-chat';
-import { AppText, Screen } from '@/src/components/ui';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
+
+import {
+  CalorieSummary,
+  FoodEditModal,
+  LogMethodSheet,
+  MacroBars,
+  MealSection,
+  type LogMethod,
+} from '@/src/components/diet';
+import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
+import {
+  dailyTotals,
+  entriesForDate,
+  groupByMeal,
+  MEAL_SLOTS,
+  todayLocalISODate,
+} from '@/src/services/food-log';
+import { computeTargets } from '@/src/services/nutrition-targets';
+import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
+import { colors, spacing } from '@/src/theme/theme';
+import type { LoggedFood, MealSlot } from '@/src/types/user-data';
 
 /**
- * Diet Corner — the chosen NS's territory, and Meridian's first live AI
- * surface (brief §10): conversational meal logging. Thin wrapper around
- * the shared CharacterChat; the greeting and placeholder are this
- * surface's scripted copy.
+ * Diet Corner — the NS's territory, now a food-tracking dashboard
+ * (MyFitnessPal/YAZIO pattern): calories and macros against the target,
+ * today's meals, and five ways to log. The NS conversation lives on a
+ * pushed screen (app/diet-chat.tsx), mirroring the Training Hub split.
  */
 export default function DietScreen() {
   const nsId = useUserStore((s) => s.nsId);
+  const foodLog = useUserDataStore((s) => s.foodLog);
+  const nutritionState = useUserDataStore((s) => s.nutritionState);
+  const userProfile = useUserDataStore((s) => s.userProfile);
+  const currentWeight = useUserDataStore((s) => s.dailySignals.currentWeight);
+  const hasHydrated = useUserDataStore((s) => s.hasHydrated);
+  const updateNutritionState = useUserDataStore((s) => s.updateNutritionState);
+  const updateFood = useUserDataStore((s) => s.updateFood);
+  const removeFood = useUserDataStore((s) => s.removeFood);
+
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMeal, setSheetMeal] = useState<MealSlot | null>(null);
+  const [editing, setEditing] = useState<LoggedFood | null>(null);
+
   const ns = nsId ? getCharacter(nsId) : null;
 
+  // Day-one targets: once hydrated, if no calorie target exists but the
+  // About-you stats do, compute one so the dashboard means something
+  // immediately. The NS refines it later; the user can update stats any
+  // time on Profile.
+  useEffect(() => {
+    if (!hasHydrated || nutritionState.calorieTarget !== undefined) return;
+    const computed = computeTargets(userProfile, currentWeight);
+    if (computed) updateNutritionState(computed);
+    // Run once post-hydration; inputs are read fresh at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasHydrated]);
+
   if (!ns || !nsId) {
-    // The setup gate should make this unreachable; render a safe fallback.
     return (
       <Screen>
         <AppText variant="body">Pick a nutrition specialist in setup first.</AppText>
@@ -22,13 +68,124 @@ export default function DietScreen() {
     );
   }
 
+  const today = todayLocalISODate();
+  const todaysEntries = entriesForDate(foodLog ?? [], today);
+  const totals = dailyTotals(todaysEntries);
+  const byMeal = groupByMeal(todaysEntries);
+  const hasTarget = nutritionState.calorieTarget !== undefined;
+
+  /** Routes the picked method to its logging surface. */
+  function handlePickMethod(method: LogMethod) {
+    setSheetOpen(false);
+    const meal = sheetMeal ?? undefined;
+    const params = meal ? { meal } : undefined;
+    switch (method) {
+      case 'photo':
+        router.push({ pathname: '/food/photo', params });
+        break;
+      case 'barcode':
+        router.push({ pathname: '/food/scan', params });
+        break;
+      case 'database':
+        router.push({ pathname: '/food/search', params });
+        break;
+      case 'manual':
+        router.push({ pathname: '/food/manual', params });
+        break;
+      case 'chat':
+        router.push('/diet-chat');
+        break;
+    }
+  }
+
+  /** Opens the method sheet, optionally pre-targeted at a meal slot. */
+  function openSheet(meal: MealSlot | null) {
+    setSheetMeal(meal);
+    setSheetOpen(true);
+  }
+
   return (
-    <CharacterChat
-      characterId={nsId}
-      subtitle={`${ns.origin} · Nutrition Specialist`}
-      greeting={`I'm ${ns.name}. When you eat something, just tell me about it the way you'd tell a friend — I'll take it from there.`}
-      returnGreeting="You're back. What are we working with today?"
-      placeholder="Tell me what you ate…"
-    />
+    <Screen>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <AppText variant="title">Diet Corner</AppText>
+        <AppText variant="label" style={styles.subheading}>
+          with {ns.name}
+        </AppText>
+
+        <CalorieSummary consumed={totals.calories} target={nutritionState.calorieTarget} />
+
+        {!hasTarget && (
+          <Card style={styles.prompt}>
+            <AppText variant="label" color={colors.warning}>
+              No target yet
+            </AppText>
+            <AppText variant="caption" style={styles.promptBody}>
+              Fill in your height and weight under About You and Meridian sets a daily
+              target to aim at.
+            </AppText>
+            <Button
+              label="Open Profile"
+              variant="secondary"
+              onPress={() => router.push('/(tabs)/profile')}
+              testID="diet-open-profile"
+            />
+          </Card>
+        )}
+
+        <MacroBars totals={totals} targets={nutritionState.macroTargets} />
+
+        <Button label="Log food" onPress={() => openSheet(null)} testID="diet-log-food" />
+
+        {MEAL_SLOTS.map((meal) => (
+          <MealSection
+            key={meal}
+            meal={meal}
+            entries={byMeal[meal]}
+            onAdd={() => openSheet(meal)}
+            onEntryPress={setEditing}
+          />
+        ))}
+
+        <Button
+          label={`Talk to ${ns.name}`}
+          variant="secondary"
+          onPress={() => router.push('/diet-chat')}
+          style={styles.talkButton}
+          testID="diet-talk"
+        />
+      </ScrollView>
+
+      <LogMethodSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onPick={handlePickMethod}
+      />
+      <FoodEditModal
+        entry={editing}
+        onClose={() => setEditing(null)}
+        onSave={updateFood}
+        onDelete={removeFood}
+      />
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  content: {
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  subheading: {
+    marginTop: -spacing.sm,
+  },
+  prompt: {
+    borderColor: colors.warning,
+    gap: spacing.sm,
+  },
+  promptBody: {
+    marginBottom: spacing.xs,
+  },
+  talkButton: {
+    marginTop: spacing.xs,
+  },
+});

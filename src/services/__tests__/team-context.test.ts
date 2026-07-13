@@ -8,6 +8,7 @@ import type { ChatMessage } from '@/src/store/chat-store';
 import type { CharacterId } from '@/src/content/characters';
 import {
   EMPTY_SHARED_USER_DATA,
+  type LoggedFood,
   type SharedUserData,
   type TeamEvent,
   type WorkoutPlan,
@@ -403,5 +404,70 @@ describe('buildTeamContext today plan line', () => {
     expect(block).toContain('Move 0');
     expect(block).toContain('+4 more');
     expect(block).toContain('12 exercises');
+  });
+});
+
+describe('buildTeamContext today intake line', () => {
+  function food(overrides: Partial<LoggedFood> = {}): LoggedFood {
+    return {
+      id: overrides.id ?? 'f1',
+      loggedAt: overrides.loggedAt ?? Date.now(),
+      forDate: overrides.forDate ?? todayISO(),
+      meal: overrides.meal ?? 'lunch',
+      source: overrides.source ?? 'manual',
+      servings: overrides.servings ?? 1,
+      item: overrides.item ?? {
+        name: 'Jollof rice',
+        caloriesPerServing: 400,
+        proteinG: 10,
+        carbsG: 60,
+        fatsG: 12,
+      },
+    };
+  }
+
+  function withFood(entries: LoggedFood[], calorieTarget?: number): SharedUserData {
+    return {
+      ...EMPTY_SHARED_USER_DATA,
+      foodLog: entries,
+      nutritionState: calorieTarget !== undefined ? { calorieTarget } : {},
+    };
+  }
+
+  it('reports totals against the target with foods named', () => {
+    const block = buildTeamContext(
+      'nneka',
+      {},
+      'Innocent',
+      withFood([food(), food({ id: 'f2', item: { name: 'Grilled chicken', caloriesPerServing: 300, proteinG: 40 } })], 2100),
+    );
+    expect(block).toContain('eaten so far today: ~700 of 2100 kcal');
+    expect(block).toContain('jollof rice, grilled chicken');
+    expect(block).toContain('P 50');
+  });
+
+  it('omits the target when none is set', () => {
+    const block = buildTeamContext('nneka', {}, 'Innocent', withFood([food()]));
+    expect(block).toContain('~400 kcal');
+    expect(block).not.toContain(' of ');
+  });
+
+  it("skips yesterday's entries", () => {
+    const block = buildTeamContext(
+      'nneka',
+      {},
+      'Innocent',
+      withFood([food({ forDate: '2000-01-01' })], 2100),
+    );
+    expect(block).not.toContain('eaten so far today');
+  });
+
+  it('caps named foods and counts the rest', () => {
+    const many = Array.from({ length: 7 }, (_, i) =>
+      food({ id: `f${i}`, item: { name: `Food ${i}`, caloriesPerServing: 100 } }),
+    );
+    const block = buildTeamContext('nneka', {}, 'Innocent', withFood(many, 2100));
+    expect(block).toContain('food 0');
+    expect(block).toContain('+2 more');
   });
 });

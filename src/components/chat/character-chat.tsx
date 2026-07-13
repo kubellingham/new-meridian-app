@@ -50,6 +50,12 @@ type CharacterChatProps = {
   pendingOpening?: { id: string; text: string };
   /** Called with the opening's id after it's been shown. */
   onOpeningDelivered?: (id: string) => void;
+  /**
+   * Replaces the default reply call — surfaces with side channels (e.g.
+   * the NS chat, whose replies can also log food via a tool) fetch their
+   * own reply and handle the extras, returning just the text to show.
+   */
+  fetchReply?: (history: ChatMessage[]) => Promise<string>;
 };
 
 /** How recently the user must have visited to skip the API return greeting. */
@@ -99,6 +105,7 @@ export function CharacterChat({
   showBack,
   pendingOpening,
   onOpeningDelivered,
+  fetchReply,
 }: CharacterChatProps) {
   const name = useUserStore((s) => s.name);
   const threads = useChatStore((s) => s.threads);
@@ -193,7 +200,9 @@ export function CharacterChat({
       // Full persisted history goes to the API — the specialist's memory —
       // even though the UI only shows this visit.
       const fullHistory = [...(useChatStore.getState().threads[characterId] ?? [])];
-      const reply = await getCharacterReply(characterId, fullHistory, name);
+      const reply = fetchReply
+        ? await fetchReply(fullHistory)
+        : await getCharacterReply(characterId, fullHistory, name);
       append(characterId, assistantMessage(reply));
       if (voiceEnabled && voiceAvailable) {
         void speak(characterId, reply);

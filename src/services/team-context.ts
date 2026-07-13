@@ -6,6 +6,7 @@ import type {
   WorkoutSession,
 } from '@/src/types/user-data';
 import { pendingEventsFor } from './events';
+import { dailyTotals, entriesForDate, todayLocalISODate } from './food-log';
 
 /**
  * The shared-database MVP (brief §4, Collaboration Model §2). Every
@@ -123,6 +124,12 @@ function shareableFacts(data: SharedUserData): string[] {
     lines.push(`most recent weight around ${data.dailySignals.currentWeight} kg`);
   }
 
+  // Today's intake so far — what the user has actually eaten, against the
+  // target when one exists. This is what lets the NS coach with real
+  // numbers, Kael note the day's direction, and Sera see patterns.
+  const intakeLine = describeTodaysIntake(data);
+  if (intakeLine) lines.push(intakeLine);
+
   // Today's plan (what the trainer prescribed) comes before the history of
   // completed sessions — it's the most current thing the team should know,
   // and it's what lets the trainer answer "why these exercises?" instead of
@@ -134,6 +141,33 @@ function shareableFacts(data: SharedUserData): string[] {
   if (trainingLine) lines.push(trainingLine);
 
   return lines;
+}
+
+/** Foods named explicitly in the intake line before "+N more". */
+const INTAKE_FOODS_NAMED = 5;
+
+/**
+ * One line for what's been eaten today — totals against the target, plus
+ * the foods by name so the NS can react to the actual meal, not just the
+ * math. Empty when nothing's logged today.
+ */
+function describeTodaysIntake(data: SharedUserData): string {
+  const entries = entriesForDate(data.foodLog ?? [], todayLocalISODate());
+  if (entries.length === 0) return '';
+
+  const totals = dailyTotals(entries);
+  const target = data.nutritionState.calorieTarget;
+  const calorieBit =
+    target !== undefined
+      ? `~${totals.calories} of ${target} kcal`
+      : `~${totals.calories} kcal`;
+  const macroBit = `(P ${totals.proteinG} / C ${totals.carbsG} / F ${totals.fatsG} g)`;
+
+  const named = entries.slice(0, INTAKE_FOODS_NAMED).map((e) => e.item.name.toLowerCase());
+  const extra = entries.length - named.length;
+  const foods = extra > 0 ? `${named.join(', ')}, +${extra} more` : named.join(', ');
+
+  return `eaten so far today: ${calorieBit} ${macroBit} — ${foods}`;
 }
 
 /** Today's local date (YYYY-MM-DD) for comparing against a plan's forDate. */
