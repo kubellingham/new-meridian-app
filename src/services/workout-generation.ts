@@ -16,6 +16,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 import type { CharacterId } from '@/src/content/characters';
 import { buildSystem, getClient, MODEL } from '@/src/services/claude';
+import { buildProgressionDigest } from '@/src/services/workout-progression';
+import { useUserDataStore } from '@/src/store/user-data-store';
 import type { ExerciseCategory, WorkoutPlan } from '@/src/types/user-data';
 
 /** Local ISO date (YYYY-MM-DD) — used to stamp `forDate` and dedup per day. */
@@ -185,13 +187,23 @@ export async function generateWorkoutPlan(
   trainerId: CharacterId,
   userName: string,
 ): Promise<WorkoutPlan> {
+  // The per-exercise progression digest is generation-specific detail —
+  // it rides on the directive rather than every character's context, so
+  // only the trainer composing a plan pays the tokens for it.
+  const digest = buildProgressionDigest(
+    useUserDataStore.getState().programmeState.recentSessions,
+  );
+  const directive = digest
+    ? `${GENERATE_PLAN_DIRECTIVE}\n\n${digest}`
+    : GENERATE_PLAN_DIRECTIVE;
+
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 2048,
     system: buildSystem(trainerId, userName),
     tools: [WORKOUT_PLAN_TOOL],
     tool_choice: { type: 'tool', name: 'submit_workout_plan' },
-    messages: [{ role: 'user', content: GENERATE_PLAN_DIRECTIVE }],
+    messages: [{ role: 'user', content: directive }],
   });
 
   const input = extractPlanInput(response);
