@@ -121,6 +121,7 @@ export default function TrainingScreen() {
     const session: WorkoutSession = {
       id: `sess-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       planId: currentPlan.id,
+      focusArea: currentPlan.focusArea,
       startedAt: Date.now(),
       status: 'in-progress',
       logs: currentPlan.exercises.map((ex) => ({
@@ -166,6 +167,16 @@ export default function TrainingScreen() {
           style={styles.talkButton}
           testID="training-talk"
         />
+
+        {(recentSessions?.length ?? 0) > 0 && (
+          <Button
+            label="Training history"
+            variant="ghost"
+            onPress={() => router.push('/history')}
+            style={styles.historyButton}
+            testID="training-history"
+          />
+        )}
 
         {!isClaudeConfigured() && (
           <Card style={styles.offline}>
@@ -226,6 +237,9 @@ const styles = StyleSheet.create({
   },
   talkButton: {
     marginTop: spacing.md,
+  },
+  historyButton: {
+    marginTop: spacing.xs,
   },
   offline: {
     marginTop: spacing.lg,

@@ -138,7 +138,7 @@ export function WorkoutStateCard(props: WorkoutStateCardProps) {
 
     case 'completed': {
       const { session } = state;
-      const focus = session.logs[0]?.name ? guessFocus(session.logs[0].name) : 'session';
+      const focus = session.focusArea ?? (session.logs[0]?.name ?? 'Session');
       const durationMinutes =
         session.completedAt && session.startedAt
           ? Math.max(1, Math.round((session.completedAt - session.startedAt) / 60000))
@@ -166,11 +166,6 @@ export function WorkoutStateCard(props: WorkoutStateCardProps) {
       );
     }
   }
-}
-
-function guessFocus(firstExerciseName: string): string {
-  // Denormalized exercise name is our only signal without the plan around.
-  return firstExerciseName;
 }
 
 const styles = StyleSheet.create({

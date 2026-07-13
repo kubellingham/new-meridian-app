@@ -57,6 +57,7 @@ export default function RootLayout() {
         <Stack.Screen name="kael" />
         <Stack.Screen name="trainer" />
         <Stack.Screen name="workout/[sessionId]" />
+        <Stack.Screen name="history" />
       </Stack>
       <StatusBar style="light" />
     </GestureHandlerRootView>

@@ -193,7 +193,7 @@ function describeRecentTraining(sessions: WorkoutSession[] | undefined): string 
 
   const parts = sessions.slice(0, RECENT_TRAINING_DIGEST_MAX).map((s) => {
     const dayLabel = describeDayFromEpoch(s.completedAt ?? s.abandonedAt ?? s.startedAt);
-    const focus = s.logs[0]?.name ? sessionFocusHint(s) : 'training';
+    const focus = s.focusArea?.toLowerCase() ?? sessionFocusHint(s);
     const durationMin =
       s.completedAt && s.startedAt
         ? Math.max(1, Math.round((s.completedAt - s.startedAt) / 60000))

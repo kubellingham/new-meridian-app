@@ -171,6 +171,9 @@ export interface ExerciseLog {
 export interface WorkoutSession {
   id: string;
   planId: string;
+  /** Denormalized from the plan so history stays readable once the plan
+   *  is cleared (currentPlan is wiped when a session completes). */
+  focusArea?: string;
   startedAt: number;
   completedAt?: number;
   abandonedAt?: number;
