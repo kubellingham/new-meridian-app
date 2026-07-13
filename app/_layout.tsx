@@ -11,6 +11,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { colors } from '@/src/theme/theme';
@@ -41,7 +42,9 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    // GestureHandlerRootView is required for RNGH gestures (e.g. the
+    // swipe-to-delete on workout set rows) to receive touches.
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -56,6 +59,6 @@ export default function RootLayout() {
         <Stack.Screen name="workout/[sessionId]" />
       </Stack>
       <StatusBar style="light" />
-    </>
+    </GestureHandlerRootView>
   );
 }

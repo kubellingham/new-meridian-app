@@ -65,6 +65,12 @@ interface UserDataState extends SharedUserData {
   startSession: (session: WorkoutSession) => void;
   /** Appends a set to the log for one exercise inside currentSession. */
   logSet: (plannedExerciseId: string, set: SetLog) => void;
+  /**
+   * Removes one logged set (by its setNumber) and renumbers the rest so
+   * they stay contiguous. Drops the exercise back to pending when the
+   * last set is removed. Powers both swipe-to-delete and un-ticking.
+   */
+  removeSet: (plannedExerciseId: string, setNumber: number) => void;
   /** Shallow-merges into the ExerciseLog for one exercise. */
   updateExerciseLog: (plannedExerciseId: string, patch: Partial<ExerciseLog>) => void;
   /**
@@ -126,6 +132,29 @@ export const useUserDataStore = create<UserDataState>()(
               ? { ...log, sets: [...log.sets, setLog], status: 'in-progress' as const }
               : log,
           );
+          return {
+            programmeState: {
+              ...state.programmeState,
+              currentSession: { ...current, logs },
+            },
+          };
+        }),
+      removeSet: (plannedExerciseId, setNumber) =>
+        set((state) => {
+          const current = state.programmeState.currentSession;
+          if (!current) return state;
+          const logs = current.logs.map((log) => {
+            if (log.plannedExerciseId !== plannedExerciseId) return log;
+            const remaining = log.sets
+              .filter((s) => s.setNumber !== setNumber)
+              // Renumber so set numbers stay 1..N contiguous after a delete.
+              .map((s, i) => ({ ...s, setNumber: i + 1 }));
+            return {
+              ...log,
+              sets: remaining,
+              status: remaining.length === 0 ? ('pending' as const) : ('in-progress' as const),
+            };
+          });
           return {
             programmeState: {
               ...state.programmeState,

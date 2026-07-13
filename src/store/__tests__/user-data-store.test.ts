@@ -158,6 +158,46 @@ describe('workout session lifecycle', () => {
     expect(recent.find((s) => s.id === 'sess-1')).toBeUndefined();
   });
 
+  it('removeSet deletes a set and renumbers the rest contiguously', () => {
+    const plan = makePlan();
+    const store = useUserDataStore.getState();
+    store.setCurrentPlan(plan);
+    store.startSession(makeSession(plan));
+    store.logSet('ex-1', { setNumber: 1, weight: 50, reps: 8 });
+    store.logSet('ex-1', { setNumber: 2, weight: 55, reps: 6 });
+    store.logSet('ex-1', { setNumber: 3, weight: 60, reps: 4 });
+
+    // Remove the middle set — remaining should renumber to 1,2.
+    store.removeSet('ex-1', 2);
+    const log = useUserDataStore
+      .getState()
+      .programmeState.currentSession?.logs.find((l) => l.plannedExerciseId === 'ex-1');
+    expect(log?.sets.map((s) => s.setNumber)).toEqual([1, 2]);
+    // The 55 kg set (originally #2) is gone; 50 and 60 remain.
+    expect(log?.sets.map((s) => s.weight)).toEqual([50, 60]);
+    expect(log?.status).toBe('in-progress');
+  });
+
+  it('removeSet drops the exercise back to pending when the last set goes', () => {
+    const plan = makePlan();
+    const store = useUserDataStore.getState();
+    store.setCurrentPlan(plan);
+    store.startSession(makeSession(plan));
+    store.logSet('ex-1', { setNumber: 1, weight: 50, reps: 8 });
+    store.updateExerciseLog('ex-1', { status: 'completed' });
+    store.removeSet('ex-1', 1);
+    const log = useUserDataStore
+      .getState()
+      .programmeState.currentSession?.logs.find((l) => l.plannedExerciseId === 'ex-1');
+    expect(log?.sets).toEqual([]);
+    expect(log?.status).toBe('pending');
+  });
+
+  it('removeSet is a no-op when no currentSession is active', () => {
+    useUserDataStore.getState().removeSet('ex-1', 1);
+    expect(useUserDataStore.getState().programmeState.currentSession).toBeUndefined();
+  });
+
   it('logSet is a no-op when no currentSession is active', () => {
     // Deliberately no plan / session set.
     useUserDataStore.getState().logSet('ex-1', { setNumber: 1, weight: 60, reps: 8 });

@@ -5,7 +5,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 
 import {
   CurrentExercisePanel,
+  exerciseInputMode,
   FeelingPicker,
+  type LoggedSetValues,
   SetLogRow,
 } from '@/src/components/workout';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
@@ -29,6 +31,7 @@ export default function WorkoutRunnerScreen() {
   const currentPlan = useUserDataStore((s) => s.programmeState.currentPlan);
   const currentSession = useUserDataStore((s) => s.programmeState.currentSession);
   const logSet = useUserDataStore((s) => s.logSet);
+  const removeSet = useUserDataStore((s) => s.removeSet);
   const updateExerciseLog = useUserDataStore((s) => s.updateExerciseLog);
   const completeSession = useUserDataStore((s) => s.completeSession);
   const abandonSession = useUserDataStore((s) => s.abandonSession);
@@ -79,8 +82,8 @@ export default function WorkoutRunnerScreen() {
 
   const setsLogged = currentLog?.sets.length ?? 0;
   const targetSets = currentExercise.targetSets;
-  const canAdvance = setsLogged >= targetSets;
   const isLastExercise = ordinal >= exercises.length - 1;
+  const inputMode = exerciseInputMode(currentExercise);
 
   /** Toggles the collapsed per-exercise note field. */
   function toggleExerciseNote() {
@@ -96,17 +99,19 @@ export default function WorkoutRunnerScreen() {
     }
   }
 
-  /** Logs one set for the current exercise. Advances the row lock. */
-  function handleLogSet(values: { weight?: number; reps?: number }) {
+  /** Logs one set for the current exercise. */
+  function handleLogSet(values: LoggedSetValues) {
     if (!currentExercise) return;
     const setNumber = setsLogged + 1;
     const set: SetLog = {
       setNumber,
       weight: values.weight,
       reps: values.reps,
+      durationSeconds: values.durationSeconds,
     };
     logSet(currentExercise.id, set);
-    // Mark exercise completed when the last prescribed set lands.
+    // Reaching the prescribed count reads as done; below it, in-progress.
+    // Sets aren't mandatory, so this is a hint, not a gate.
     if (setNumber >= targetSets) {
       updateExerciseLog(currentExercise.id, { status: 'completed' });
     } else {
@@ -114,10 +119,10 @@ export default function WorkoutRunnerScreen() {
     }
   }
 
-  /** Adds a bonus set beyond the plan. */
-  function handleAddSet() {
+  /** Removes one set (un-tick or swipe-delete). */
+  function handleRemoveSet(setNumber: number) {
     if (!currentExercise) return;
-    updateExerciseLog(currentExercise.id, { status: 'in-progress' });
+    removeSet(currentExercise.id, setNumber);
   }
 
   /** Marks the exercise skipped and advances. */
@@ -128,8 +133,15 @@ export default function WorkoutRunnerScreen() {
     else setOrdinal(ordinal + 1);
   }
 
-  /** Advances to the next exercise or opens the session summary. */
+  /**
+   * Advances to the next exercise or opens the summary. Sets are never
+   * mandatory: if the user logged anything at all, we call the exercise
+   * done; if they logged nothing and move on, it stays as-is.
+   */
   function handleNextExercise() {
+    if (currentExercise && currentLog && currentLog.sets.length > 0 && currentLog.status !== 'skipped') {
+      updateExerciseLog(currentExercise.id, { status: 'completed' });
+    }
     if (isLastExercise) {
       setShowSummary(true);
     } else {
@@ -229,7 +241,9 @@ export default function WorkoutRunnerScreen() {
           total={exercises.length}
         />
 
-        {/* Set rows: prescribed count + any bonus sets already logged. */}
+        {/* Set rows: prescribed count, plus a trailing empty row so extra
+            sets can always be added. Logged rows can be un-ticked or
+            swiped away. Nothing here is mandatory. */}
         {Array.from({ length: Math.max(targetSets, setsLogged + 1) }).map((_, i) => {
           const setNumber = i + 1;
           const logged = setNumber <= setsLogged;
@@ -239,29 +253,28 @@ export default function WorkoutRunnerScreen() {
             : undefined;
           return (
             <SetLogRow
-              key={setNumber}
+              key={`${currentExercise.id}-${setNumber}`}
               setNumber={setNumber}
+              mode={inputMode}
               logged={logged}
               active={active}
               logged_values={loggedValues}
               onLog={handleLogSet}
+              onRemove={() => handleRemoveSet(setNumber)}
             />
           );
         })}
 
         <View style={styles.subActions}>
-          <Pressable onPress={handleAddSet} style={styles.subAction} testID="add-set">
-            <Ionicons name="add" size={18} color={colors.primary} />
-            <AppText variant="label" color={colors.primary}>
-              Add set
-            </AppText>
-          </Pressable>
           <Pressable onPress={toggleExerciseNote} style={styles.subAction} testID="toggle-note">
             <Ionicons name="create-outline" size={18} color={colors.muted} />
             <AppText variant="label" color={colors.muted}>
               {exerciseNoteFor === currentExercise.id ? 'Save note' : 'Add note'}
             </AppText>
           </Pressable>
+          <AppText variant="caption" color={colors.muted} style={styles.hint}>
+            Swipe a logged set to delete it. Do what feels right today.
+          </AppText>
         </View>
 
         {exerciseNoteFor === currentExercise.id && (
@@ -277,17 +290,8 @@ export default function WorkoutRunnerScreen() {
         )}
 
         <Button
-          label={
-            isLastExercise
-              ? canAdvance || currentLog?.status === 'skipped'
-                ? 'Finish session'
-                : 'Log all sets, then finish'
-              : canAdvance || currentLog?.status === 'skipped'
-                ? 'Next exercise'
-                : 'Log all sets, then continue'
-          }
+          label={isLastExercise ? 'Finish session' : 'Next exercise'}
           onPress={handleNextExercise}
-          disabled={!canAdvance && currentLog?.status !== 'skipped'}
           style={styles.primaryAction}
           testID="next-exercise"
         />
@@ -437,16 +441,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   subActions: {
-    flexDirection: 'row',
-    gap: spacing.lg,
     marginTop: spacing.sm,
     marginBottom: spacing.md,
+    gap: spacing.xs,
   },
   subAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
     paddingVertical: spacing.xs,
+  },
+  hint: {
+    marginTop: spacing.xs,
   },
   noteInput: {
     backgroundColor: colors.surface,
