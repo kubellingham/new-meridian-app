@@ -74,7 +74,7 @@ export default function TrainingScreen() {
     if (!trainerId || !isClaudeConfigured()) {
       Alert.alert(
         `${trainerName} offline`,
-        'The conversation service needs an API key. See README.',
+        "Meridian's service is unreachable right now. Check your connection and try again.",
       );
       return;
     }
@@ -182,7 +182,7 @@ export default function TrainingScreen() {
               Trainer offline
             </AppText>
             <AppText variant="caption" style={styles.offlineBody}>
-              Add EXPO_PUBLIC_ANTHROPIC_API_KEY to bring the trainer to life.
+              Meridian&apos;s service is unreachable — check your connection, or update the app.
             </AppText>
           </Card>
         )}

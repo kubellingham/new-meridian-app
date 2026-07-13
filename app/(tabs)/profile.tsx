@@ -1,5 +1,6 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { CONSULTANTS, getCharacter } from '@/src/content/characters';
@@ -8,6 +9,14 @@ import { useChatStore } from '@/src/store/chat-store';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
+
+/** App version as built (from app.json via expo-constants). */
+const APP_VERSION = Constants.expoConfig?.version ?? 'dev';
+
+/** Tester feedback lands on WhatsApp — number set in app.json extra. */
+const FEEDBACK_WHATSAPP: string | undefined = (
+  Constants.expoConfig?.extra as { feedbackWhatsApp?: string } | undefined
+)?.feedbackWhatsApp;
 
 /**
  * Profile — the control panel. Identity, active team, service status, and
@@ -40,6 +49,25 @@ export default function ProfileScreen() {
     resetUser();
     resetUserData();
     router.replace('/onboarding');
+  }
+
+  /** Opens WhatsApp with a prefilled report — the tester feedback channel. */
+  async function handleFeedback() {
+    // Digits-only international format (e.g. 2557XXXXXXXX) — the app.json
+    // placeholder deliberately fails this check until it's filled in.
+    if (!FEEDBACK_WHATSAPP || !/^\d{6,15}$/.test(FEEDBACK_WHATSAPP)) {
+      Alert.alert('Feedback', 'No feedback contact is configured in this build.');
+      return;
+    }
+    const prefill = encodeURIComponent(
+      `Meridian feedback\nVersion ${APP_VERSION} · ${Platform.OS} ${Platform.Version}\n\nWhat happened:\n`,
+    );
+    const url = `https://wa.me/${FEEDBACK_WHATSAPP}?text=${prefill}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Feedback', 'Could not open WhatsApp on this device.');
+    }
   }
 
   return (
@@ -77,9 +105,30 @@ export default function ProfileScreen() {
             style={styles.teamRow}
             color={isClaudeConfigured() ? colors.success : colors.warning}
           >
-            {isClaudeConfigured() ? 'Connected' : 'Offline — no API key configured'}
+            {isClaudeConfigured() ? 'Connected' : 'Offline — check your connection or update the app'}
           </AppText>
         </Card>
+
+        <Card style={styles.card} testID="profile-about">
+          <AppText variant="label">About Meridian</AppText>
+          <AppText variant="caption" style={styles.teamRow}>
+            Version {APP_VERSION} · early tester build
+          </AppText>
+          <AppText variant="caption" style={styles.aboutNote}>
+            Your Meridian team is AI. They know their craft and they know you, but they can
+            be wrong — treat everything here as coaching guidance, never medical advice.
+            Everything you log stays on this phone; conversations are processed by the AI
+            service to generate replies.
+          </AppText>
+        </Card>
+
+        <Button
+          label="Send feedback"
+          variant="secondary"
+          onPress={handleFeedback}
+          style={styles.feedback}
+          testID="profile-feedback"
+        />
 
         <Button
           label="Reset & restart onboarding (dev)"
@@ -106,7 +155,14 @@ const styles = StyleSheet.create({
   teamRow: {
     marginTop: spacing.sm,
   },
+  aboutNote: {
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  feedback: {
+    marginTop: spacing.lg,
+  },
   reset: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
   },
 });

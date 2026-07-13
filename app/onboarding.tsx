@@ -239,6 +239,10 @@ export default function OnboardingScreen() {
           <>
             <SpokenLines speaker={beat.speaker} lines={beat.lines} ctx={ctx} />
             <Button label={beat.buttonLabel} onPress={finish} style={styles.cta} testID="ob-finish" />
+            <AppText variant="caption" color={colors.muted} style={styles.disclaimer}>
+              Your Meridian team is AI — sharp, but not infallible, and not a doctor.
+              Coaching guidance, never medical advice.
+            </AppText>
           </>
         );
 
@@ -692,6 +696,10 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: spacing.sm,
+  },
+  disclaimer: {
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
   rosterCard: {
     marginTop: spacing.sm,

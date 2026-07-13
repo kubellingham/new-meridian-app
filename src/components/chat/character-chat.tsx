@@ -325,8 +325,8 @@ export function CharacterChat({
               {character.name} is offline
             </AppText>
             <AppText variant="caption" style={styles.offlineText}>
-              Add EXPO_PUBLIC_ANTHROPIC_API_KEY to a .env file and restart to bring the
-              conversation to life. See README for details.
+              Meridian&apos;s service is unreachable right now. Check your connection —
+              or update the app if this keeps happening.
             </AppText>
           </Card>
         )}
