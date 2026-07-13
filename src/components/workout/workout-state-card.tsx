@@ -1,20 +1,12 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card } from '@/src/components/ui';
+import type { WorkoutCardState } from '@/src/services/workout-state';
 import { colors, spacing } from '@/src/theme/theme';
-import type { WorkoutPlan, WorkoutSession } from '@/src/types/user-data';
 import { ExercisePreviewList } from './exercise-preview-list';
 
-type CardState =
-  | { kind: 'no-plan' }
-  | { kind: 'generating' }
-  | { kind: 'ready'; plan: WorkoutPlan }
-  | { kind: 'in-progress'; plan: WorkoutPlan; session: WorkoutSession }
-  | { kind: 'rest-day'; plan: WorkoutPlan }
-  | { kind: 'completed'; session: WorkoutSession };
-
 type WorkoutStateCardProps = {
-  state: CardState;
+  state: WorkoutCardState;
   trainerName: string;
   onGenerate: () => void;
   onStart: () => void;

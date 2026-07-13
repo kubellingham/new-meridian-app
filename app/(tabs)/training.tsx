@@ -11,14 +11,12 @@ import {
 import { getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { makeEventId } from '@/src/services/events';
-import {
-  generateWorkoutPlan,
-  todayLocalISODate,
-} from '@/src/services/workout-generation';
+import { generateWorkoutPlan } from '@/src/services/workout-generation';
+import { deriveWorkoutState } from '@/src/services/workout-state';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
-import type { WorkoutPlan, WorkoutSession } from '@/src/types/user-data';
+import type { WorkoutSession } from '@/src/types/user-data';
 
 /**
  * Training Hub — the trainer's territory (brief §9). Workout-first: the
@@ -62,27 +60,10 @@ export default function TrainingScreen() {
   // First visit: the trainer asks their three setup questions before any
   // plan can be generated — the answers filter the exercise database.
   const needsIntake = equipmentAccess === undefined;
-  const today = todayLocalISODate();
-  const planIsForToday = currentPlan?.forDate === today;
-  const completedToday = recentSessions?.find(
-    (s) => s.status === 'completed' && s.planId === currentPlan?.id,
-  );
-  // Also check recentSessions for one that started today, in case the plan
-  // was already cleared after completion.
-  const todaysCompletedFallback = recentSessions?.find((s) => {
-    if (s.status !== 'completed' || !s.completedAt) return false;
-    const d = new Date(s.completedAt);
-    return isoDate(d) === today;
-  });
-  const doneToday = completedToday ?? todaysCompletedFallback;
-
-  const cardState = pickState({
-    planIsForToday,
-    plan: planIsForToday ? currentPlan : undefined,
-    session: currentSession,
+  const cardState = deriveWorkoutState(
+    { currentPlan, currentSession, recentSessions },
     generating,
-    doneToday,
-  });
+  );
 
   /**
    * Fires the trainer's plan-generation call, persists the plan, and
@@ -208,38 +189,6 @@ export default function TrainingScreen() {
       </ScrollView>
     </Screen>
   );
-}
-
-/**
- * Determines which face the WorkoutStateCard should render given the
- * store's current shape. Pure function; parent passes the pieces in.
- */
-function pickState(args: {
-  planIsForToday: boolean;
-  plan: WorkoutPlan | undefined;
-  session: WorkoutSession | undefined;
-  generating: boolean;
-  doneToday: WorkoutSession | undefined;
-}): Parameters<typeof WorkoutStateCard>[0]['state'] {
-  const { planIsForToday, plan, session, generating, doneToday } = args;
-  if (doneToday) return { kind: 'completed', session: doneToday };
-  if (generating) return { kind: 'generating' };
-  if (planIsForToday && plan && session && session.status === 'in-progress') {
-    return { kind: 'in-progress', plan, session };
-  }
-  if (planIsForToday && plan && plan.exercises.length === 0) {
-    return { kind: 'rest-day', plan };
-  }
-  if (planIsForToday && plan) return { kind: 'ready', plan };
-  return { kind: 'no-plan' };
-}
-
-/** Local YYYY-MM-DD from a Date. Kept private to this file. */
-function isoDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 const styles = StyleSheet.create({
