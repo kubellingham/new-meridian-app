@@ -10,33 +10,54 @@ import { buildTeamContext } from './team-context';
 /**
  * Claude API service — the live conversation layer.
  *
- * MVP decision (brief §12): the key lives client-side for personal testing
- * only, via EXPO_PUBLIC_ANTHROPIC_API_KEY in .env. A backend proxy is
- * required before any public launch. Prompt caching is deferred (brief §12).
+ * Distribution builds talk to Meridian's own proxy (api/claude.js on the
+ * Vercel deployment): the SDK's baseURL points at the proxy and its
+ * "API key" is a shared app token that only grants access to that capped
+ * endpoint — the real Anthropic key lives server-side only. For local
+ * development, a direct EXPO_PUBLIC_ANTHROPIC_API_KEY still works as a
+ * fallback; never set it in a build handed to anyone else.
  */
 
 /** Model locked in the brief's tech stack (§12). Exported for services that
  *  need to make their own messages.create calls (e.g. workout generation). */
 export const MODEL = 'claude-sonnet-4-6';
 
-/** Reads the API key from the Expo public env (inlined at build time). */
-function getApiKey(): string | undefined {
+/** Proxy deployment base URL (e.g. https://meridian.vercel.app). */
+function getProxyUrl(): string | undefined {
+  return process.env.EXPO_PUBLIC_MERIDIAN_PROXY_URL || undefined;
+}
+
+/** Shared app token the proxy checks. Safe-ish in a bundle: it opens the
+ *  capped proxy, not the vendor account, and rotating it cuts old builds off. */
+function getAppToken(): string | undefined {
+  return process.env.EXPO_PUBLIC_MERIDIAN_APP_TOKEN || undefined;
+}
+
+/** Dev-only direct key — personal builds without a deployed proxy. */
+function getDirectKey(): string | undefined {
   return process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || undefined;
 }
 
-/** True when a key is present and live conversation can work. */
+/** True when live conversation can work (proxy configured, or dev key). */
 export function isClaudeConfigured(): boolean {
-  return Boolean(getApiKey());
+  return Boolean((getProxyUrl() && getAppToken()) || getDirectKey());
 }
 
-/** Lazily constructed client so a missing key never crashes app start. */
+/** Lazily constructed client so missing config never crashes app start. */
 let client: Anthropic | null = null;
 export function getClient(): Anthropic {
   if (!client) {
+    const proxyUrl = getProxyUrl();
+    const appToken = getAppToken();
+    const viaProxy = Boolean(proxyUrl && appToken);
     client = new Anthropic({
-      apiKey: getApiKey(),
+      apiKey: viaProxy ? appToken : getDirectKey(),
+      // The SDK appends /v1/messages to baseURL; vercel.json rewrites that
+      // path to the api/claude function.
+      baseURL: viaProxy ? proxyUrl : undefined,
       // React Native exposes a window-like global, which trips the SDK's
-      // browser guard. Client-side keys are an explicit MVP-only decision.
+      // browser guard. With the proxy there's no vendor secret in the
+      // client; the dev-key fallback remains an explicit dev-only choice.
       dangerouslyAllowBrowser: true,
     });
   }
@@ -308,16 +329,16 @@ export async function getDirectedMessage(
  */
 export function describeClaudeError(error: unknown): string {
   if (error instanceof Anthropic.AuthenticationError) {
-    return 'The API key was rejected. Check EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.';
+    return 'This version of Meridian can no longer reach the service — an update may be needed.';
   }
   if (error instanceof Anthropic.RateLimitError) {
-    return 'Rate limited right now. Give it a moment, then try again.';
+    return 'Things are busy right now. Give it a moment, then try again.';
   }
   if (error instanceof Anthropic.APIConnectionError) {
     return 'Could not reach the network. Check your connection and try again.';
   }
   if (error instanceof Anthropic.APIError) {
-    return `The conversation service returned an error (${error.status ?? 'unknown'}). Try again.`;
+    return 'The conversation service hit a problem. Try again in a moment.';
   }
   return 'Something went wrong sending that. Try again.';
 }

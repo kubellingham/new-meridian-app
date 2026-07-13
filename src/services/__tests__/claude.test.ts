@@ -45,6 +45,17 @@ describe('claude service', () => {
     expect(isClaudeConfigured()).toBe(false);
   });
 
+  it('reports configured when the proxy pair is present (no direct key)', () => {
+    delete process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+    process.env.EXPO_PUBLIC_MERIDIAN_PROXY_URL = 'https://meridian.example.com';
+    process.env.EXPO_PUBLIC_MERIDIAN_APP_TOKEN = 'app-token';
+    expect(isClaudeConfigured()).toBe(true);
+    // Token alone (or URL alone) is not enough.
+    delete process.env.EXPO_PUBLIC_MERIDIAN_PROXY_URL;
+    expect(isClaudeConfigured()).toBe(false);
+    delete process.env.EXPO_PUBLIC_MERIDIAN_APP_TOKEN;
+  });
+
   it('sends the locked model with the assembled character system prompt', async () => {
     const reply = await getCharacterReply('nneka', [msg('user', 'I had jollof rice')], 'Innocent');
 
