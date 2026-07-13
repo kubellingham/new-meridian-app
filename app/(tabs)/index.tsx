@@ -192,7 +192,7 @@ export default function HomeScreen() {
             style={styles.half}
           >
             <Card style={styles.widget}>
-              <AppText variant="label">Training</AppText>
+              <AppText variant="label">Today&apos;s training</AppText>
               <AppText
                 variant="subtitle"
                 style={styles.widgetValue}
