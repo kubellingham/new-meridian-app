@@ -69,6 +69,11 @@ function shareableFacts(data: SharedUserData): string[] {
   if (profile.primaryGoal === 'weight-loss') {
     const target = profile.goalWeight ? ` aiming for around ${profile.goalWeight} kg` : '';
     lines.push(`goal is weight loss${target}`.trim());
+  } else if (profile.primaryGoal === 'build-muscle') {
+    const target = profile.goalWeight ? ` aiming for around ${profile.goalWeight} kg` : '';
+    lines.push(`goal is building muscle${target}`.trim());
+  } else if (profile.primaryGoal === 'general-fitness') {
+    lines.push('goal is general fitness — strength, movement, consistency');
   }
 
   // Physical baselines grouped so they read like a single glance.

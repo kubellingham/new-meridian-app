@@ -15,10 +15,18 @@ import { colors, spacing } from '@/src/theme/theme';
  * (height, weight, activity, coaching style) are now collected during
  * onboarding; the NS refines them in their own intake.
  */
+/** Display labels for the three goal paths. */
+const GOAL_LABELS: Record<string, string> = {
+  'weight-loss': 'weight loss',
+  'build-muscle': 'building muscle',
+  'general-fitness': 'general fitness',
+};
+
 export default function ProfileScreen() {
   const name = useUserStore((s) => s.name);
   const nsId = useUserStore((s) => s.nsId);
   const trainerId = useUserStore((s) => s.trainerId);
+  const primaryGoal = useUserDataStore((s) => s.userProfile.primaryGoal);
   const resetUser = useUserStore((s) => s.reset);
   const clearChats = useChatStore((s) => s.clearAll);
   const resetUserData = useUserDataStore((s) => s.reset);
@@ -43,7 +51,7 @@ export default function ProfileScreen() {
       >
         <AppText variant="title">{name}</AppText>
         <AppText variant="label" style={styles.goal}>
-          Goal: weight loss
+          Goal: {(primaryGoal && GOAL_LABELS[primaryGoal]) || 'not set yet'}
         </AppText>
 
         <Card style={styles.card}>

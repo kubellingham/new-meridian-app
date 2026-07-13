@@ -130,6 +130,19 @@ describe('buildTeamContext shared-data block', () => {
     expect(block).toContain('starting weight was around 92 kg');
   });
 
+  it('surfaces the build-muscle goal with its target weight', () => {
+    const data = withProfile({ primaryGoal: 'build-muscle', goalWeight: 85, startingWeight: 78 });
+    const block = buildTeamContext('nneka', {}, 'Innocent', data);
+    expect(block).toContain('goal is building muscle aiming for around 85 kg');
+  });
+
+  it('surfaces the general-fitness goal without a weight target', () => {
+    const data = withProfile({ primaryGoal: 'general-fitness', goalWeight: 78 });
+    const block = buildTeamContext('kael', {}, 'Innocent', data);
+    expect(block).toContain('goal is general fitness');
+    expect(block).not.toContain('aiming for');
+  });
+
   it("frames the block as team memory, never as a data lookup", () => {
     const data = withProfile({ height: 178 });
     const block = buildTeamContext('kael', {}, 'Innocent', data);

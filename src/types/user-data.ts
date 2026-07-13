@@ -12,11 +12,17 @@
 
 import type { CharacterId } from '@/src/content/characters';
 
+/** The three V1 goal paths. Everything downstream branches on this. */
+export type PrimaryGoal = 'weight-loss' | 'build-muscle' | 'general-fitness';
+
+/** What the user can train with — set by the trainer's first-visit intake. */
+export type EquipmentAccess = 'full-gym' | 'home-basics' | 'bodyweight';
+
 /** §2.1 Set during onboarding and specialist intake, rarely changes. */
 export interface UserProfile {
   birthday?: string; // ISO date (YYYY-MM-DD)
   gender?: string;
-  primaryGoal?: 'weight-loss'; // V1 is weight loss only
+  primaryGoal?: PrimaryGoal;
   culturalBackground?: string; // inferred from NS choice, refined over time
   coachingPreference?: 'push' | 'support' | 'both' | 'read-as-we-go';
   height?: number; // cm
@@ -24,6 +30,8 @@ export interface UserProfile {
   goalWeight?: number; // kg
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active';
   fitnessExperience?: 'none' | 'some' | 'experienced';
+  equipmentAccess?: EquipmentAccess;
+  trainingDaysPerWeek?: number;
   trainingHistory?: string; // free text from trainer intake
   dietaryPattern?: string; // e.g. "West African, jollof-and-egusi baseline"
   allergies?: string[];

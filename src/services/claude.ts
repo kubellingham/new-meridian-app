@@ -52,6 +52,21 @@ export function getClient(): Anthropic {
  * Team names are read from the user store here — not passed by callers —
  * so every chat surface gets them without changing its call site.
  */
+/** The goal, phrased for the context block. Empty when not set yet. */
+function goalSentence(): string {
+  const { primaryGoal } = useUserDataStore.getState().userProfile;
+  switch (primaryGoal) {
+    case 'weight-loss':
+      return ' Their goal is weight loss.';
+    case 'build-muscle':
+      return ' Their goal is building muscle.';
+    case 'general-fitness':
+      return ' Their goal is general fitness — feeling strong, moving well, staying consistent.';
+    default:
+      return '';
+  }
+}
+
 function buildUserContext(userName: string): string {
   const { nsId, trainerId } = useUserStore.getState();
   const teamLines: string[] = [];
@@ -75,7 +90,7 @@ function buildUserContext(userName: string): string {
       ? "Today's workout and recent training appear in the shared context below — those are real; treat them as things you already know and reference them naturally."
       : 'No training programme has been built yet.';
 
-  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}. Their goal is weight loss. You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.\n\nWHAT EXISTS SO FAR: No device data (sleep, steps, heart rate) is connected yet. ${trainingClause} If asked about device data that isn't connected, say so plainly — never invent numbers or schedule details that don't exist.`;
+  return `CONTEXT ABOUT THIS USER:\nTheir name is ${userName}.${goalSentence()} You are speaking with them inside the Meridian app right now.\n\nTHEIR MERIDIAN TEAM:\n${teamLines.join('\n')}\nWhen something belongs to a teammate's domain, route to them by name.\n\nWHAT EXISTS SO FAR: No device data (sleep, steps, heart rate) is connected yet. ${trainingClause} If asked about device data that isn't connected, say so plainly — never invent numbers or schedule details that don't exist.`;
 }
 
 /** A message in the shape the API expects. */
