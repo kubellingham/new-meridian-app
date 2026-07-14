@@ -7,7 +7,6 @@ import {
   PlayfairDisplay_500Medium,
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
-import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -17,12 +16,10 @@ import 'react-native-reanimated';
 
 import { colors } from '@/src/theme/theme';
 
-// Crash reporting — tester builds set the DSN (not a secret); local dev
-// without one runs Sentry-free. No PII beyond what errors carry.
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-if (SENTRY_DSN) {
-  Sentry.init({ dsn: SENTRY_DSN, sendDefaultPii: false });
-}
+// Crash reporting: temporarily stripped. The @sentry/react-native + Expo
+// config plugin caused an instant boot crash on the first standalone
+// build (JS↔native binding). Reintroduce with a working setup once we
+// can iterate on device — until then the app must ship bootable.
 
 export const unstable_settings = {
   // The tab group is the app's anchor; /onboarding sits outside it.
@@ -77,6 +74,4 @@ function RootLayout() {
   );
 }
 
-// Sentry's wrapper adds navigation breadcrumbs and error boundaries when
-// enabled; without a DSN the plain component ships.
-export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;
+export default RootLayout;
