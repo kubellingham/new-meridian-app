@@ -85,7 +85,7 @@ export class VoiceError extends Error {
 export function describeVoiceError(error: unknown): string {
   if (error instanceof VoiceError) {
     if (error.status === 401) {
-      return 'ElevenLabs key rejected. Check EXPO_PUBLIC_ELEVENLABS_API_KEY.';
+      return 'Voice service key was rejected.';
     }
     if (error.status === 429) {
       return 'ElevenLabs rate limit or quota reached.';
