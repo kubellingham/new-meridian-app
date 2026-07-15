@@ -5,6 +5,7 @@ import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import {
   TrainerIntakeCard,
+  TrainerRepickCard,
   WorkoutStateCard,
   type TrainerIntakeResult,
 } from '@/src/components/workout';
@@ -28,6 +29,8 @@ import type { WorkoutSession } from '@/src/types/user-data';
  */
 export default function TrainingScreen() {
   const trainerId = useUserStore((s) => s.trainerId);
+  const retiredTrainerId = useUserStore((s) => s.retiredTrainerId);
+  const setTrainer = useUserStore((s) => s.setTrainer);
   const name = useUserStore((s) => s.name);
   const currentPlan = useUserDataStore((s) => s.programmeState.currentPlan);
   const currentSession = useUserDataStore((s) => s.programmeState.currentSession);
@@ -41,6 +44,23 @@ export default function TrainingScreen() {
   const [generating, setGenerating] = useState(false);
 
   const trainer = trainerId ? getCharacter(trainerId) : null;
+
+  // A roster change retired this user's trainer: Kael explains, then the
+  // current roster is offered with the onboarding meet → commit mechanic.
+  if (!trainerId && retiredTrainerId) {
+    return (
+      <Screen>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <AppText variant="title">Training Hub</AppText>
+          <TrainerRepickCard
+            retiredTrainerId={retiredTrainerId}
+            userName={name}
+            onCommit={setTrainer}
+          />
+        </ScrollView>
+      </Screen>
+    );
+  }
 
   if (!trainer || !trainerId) {
     return (

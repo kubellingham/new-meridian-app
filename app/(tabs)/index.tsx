@@ -35,7 +35,9 @@ import { colors, spacing } from '@/src/theme/theme';
 export default function HomeScreen() {
   const name = useUserStore((s) => s.name);
   const nsId = useUserStore((s) => s.nsId);
+  const retiredTrainerId = useUserStore((s) => s.retiredTrainerId);
   const ns = nsId ? getCharacter(nsId) : null;
+  const retiredTrainer = retiredTrainerId ? getCharacter(retiredTrainerId) : null;
 
   const events = useUserDataStore((s) => s.events);
   const foodLog = useUserDataStore((s) => s.foodLog);
@@ -110,6 +112,16 @@ export default function HomeScreen() {
         <AppText variant="label" style={styles.subheading}>
           {dateLabel}
         </AppText>
+
+        {/* Staffing note — the user's trainer retired; Kael says so
+            proactively and the tap leads to the re-pick on Training. */}
+        {retiredTrainer && (
+          <TeamNoteCard
+            from="Kael"
+            preview={`A staffing note: ${retiredTrainer.name} has moved on from Meridian. The weight-loss roster is different now — five coaches who genuinely don't agree about the method. Come meet them and pick yours.`}
+            onOpen={() => router.push('/(tabs)/training')}
+          />
+        )}
 
         {/* Kael's morning brief — a passive note, tap to open his chat. */}
         {pendingBrief && (
@@ -199,9 +211,13 @@ export default function HomeScreen() {
                 color={workoutState.kind === 'completed' ? colors.success : colors.text}
                 testID="home-training-value"
               >
-                {trainingHeadline(workoutState)}
+                {retiredTrainer ? 'New roster' : trainingHeadline(workoutState)}
               </AppText>
-              <AppText variant="caption">{trainingCaption(workoutState)}</AppText>
+              <AppText variant="caption">
+                {retiredTrainer
+                  ? 'Trainer roster changed — tap to meet them.'
+                  : trainingCaption(workoutState)}
+              </AppText>
             </Card>
           </Pressable>
 
