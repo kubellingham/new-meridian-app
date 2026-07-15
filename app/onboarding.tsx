@@ -448,7 +448,7 @@ export default function OnboardingScreen() {
             testID={`ob-roster-${c.id}`}
           >
             <Card style={styles.rosterCard}>
-              <AppText variant="subtitle">{c.name}</AppText>
+              <AppText variant="subtitle">{c.fullName ?? c.name}</AppText>
               <AppText variant="caption">
                 {c.origin} · {c.personalityWords}
               </AppText>

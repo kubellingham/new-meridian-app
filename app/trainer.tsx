@@ -12,24 +12,38 @@ import { useUserStore } from '@/src/store/user-store';
 const TRAINER_SCRIPTS = {
   cassidy: {
     greeting:
-      "Cassidy. I lost forty kilos the slow way — that's the pace we work at. What are we starting with?",
-    returnGreeting: 'Back. What are we working on?',
+      "Cassidy. Half a kilo a week — I know how that sounds, and it's still the plan. What are we starting with?",
+    returnGreeting: 'Back. On schedule. What do you need?',
     placeholder: 'What do you want to work on?',
-    subtitle: 'Chicago, USA · Weight-Loss Trainer',
+    subtitle: 'Chicago, USA · Slow & Sustainable',
   },
-  tobias: {
+  renata: {
     greeting:
-      "Tobias. I care more about the week around the workout than the workout itself — that's usually where the weight actually moves. Tell me what's going on.",
-    returnGreeting: 'Back. What are we looking at?',
+      "Renata. Three sessions a week, five movements, full rest. It will look small — it's supposed to. Where are we starting?",
+    returnGreeting: 'Back. The bar remembers where we left it.',
+    placeholder: 'Ask about the programme…',
+    subtitle: 'Coimbra, Portugal · Strength Minimalist',
+  },
+  marcus: {
+    greeting:
+      "Marcus! Right — twelve minutes of work, then next week we beat it. That's the whole method. Where are you at?",
+    returnGreeting: 'Back! Good. The clock missed you.',
+    placeholder: 'Tell me where you are…',
+    subtitle: 'Manchester, England · Conditioning',
+  },
+  priya: {
+    greeting:
+      "Priya. Twenty-five minutes, three times a week — that's the whole plan, and it's on purpose. What's your week look like?",
+    returnGreeting: "Back. Nothing to make up for. What's next?",
     placeholder: "What's on your mind?",
-    subtitle: 'Berlin, Germany · Weight-Loss Trainer',
+    subtitle: 'Birmingham, England · Adherence-First',
   },
-  marco: {
+  noa: {
     greeting:
-      "Marco. Good to meet you. We build something you'll actually want to keep doing — that's the whole trick. Tell me where you're at.",
-    returnGreeting: 'Ah, back. Ready to move?',
-    placeholder: "Tell me what you're up to…",
-    subtitle: 'São Paulo, Brazil · Weight-Loss Trainer',
+      'Noa. Twelve weeks, a real deficit, heavy lifting to keep your muscle — and then we stop. Tell me your numbers.',
+    returnGreeting: 'Back. Where are we against the plan?',
+    placeholder: 'Tell me your numbers…',
+    subtitle: 'Tel Aviv, Israel · Twelve-Week Transformer',
   },
   ananya: {
     greeting:

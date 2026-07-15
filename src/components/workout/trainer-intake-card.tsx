@@ -24,9 +24,11 @@ export interface TrainerIntakeResult {
 
 /** One line, per trainer, opening the intake in their voice. */
 const INTAKE_LEAD_INS: Partial<Record<CharacterId, string>> = {
-  cassidy: "Before I build anything, real talk — I need three answers. Then we work.",
-  tobias: 'Before the first plan: three questions. The answers shape everything, so be honest.',
-  marco: "Quick one before we play — three questions, then I build you something good.",
+  cassidy: 'Three questions before I build anything. Honest answers — the plan only works if it fits your actual life.',
+  renata: 'Three questions. Then I write the programme. It will be short; that is the design.',
+  marcus: "Three quick ones before we start the clock — then I build you something you'll want to beat.",
+  priya: "Three questions, and I'm mostly checking how much life you have around the training. Be honest — I've heard everything.",
+  noa: 'Three questions. Answer them straight — the plan is built on them, and the plan has a date.',
   ananya: 'Before your first plan, three quick questions. Accha — precision starts here.',
   dmitri: 'Three questions. Then the work begins.',
   kofi: 'Before we build, chale — three questions. Answer straight, then we move.',

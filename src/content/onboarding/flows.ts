@@ -104,7 +104,9 @@ export interface SpecialistOnboarding {
 
 /**
  * Intro + commit lines shown when a trainer or NS card is opened in the
- * roster. Trainers and Elena are transcribed from the locked script; the
+ * roster. Weight-loss trainers follow Trainer Roster v1 (the philosophy
+ * is in the prescription — each intro states the actual plan); other
+ * trainers and Elena are transcribed from the locked script; the
  * remaining seven NS are drafted to each character's voice (Golden Test:
  * culture is the lens, not the menu).
  */
@@ -113,37 +115,76 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
   kael: { intro: [], commit: [] },
   sera: { intro: [], commit: [] },
 
-  // — Trainers (verbatim from script Scenes 3.3 / 3.4) —
+  // — Weight-loss trainers (Trainer Roster v1: philosophy is in the
+  //   prescription — each intro states the actual plan and lets it argue) —
   cassidy: {
     intro: [
       'Hi, {NAME}.',
-      "I'm Cassidy. Before I tell you anything about how I work — I want you to know I've done this. I lost 40 kilos myself, slowly, the long way, when everyone around me was telling me to do it faster. So when I say I understand where you might be right now, I'm not guessing.",
-      "My job is honest. I won't sugarcoat things, but I won't shame you either. If you skip three sessions, I'll tell you. If you have a hard week, I'll meet you where you are and we move forward. The way this works is by being real with each other from day one.",
-      "And the lifestyle part — that's the only kind of fat loss I do. The quick kind is someone else's job. I build bodies you keep.",
-      'Take your time choosing. The right fit is the one you feel.',
+      "I'm Cassidy. I lost forty kilos, and I've kept it off six years. The way I did that is the only way I coach: half a kilo a week. I know. I know how that sounds.",
+      "Here's the plan you'd get from me. A deficit small enough you can live in it — three, four hundred calories, never more. Diet breaks scheduled in advance, not handed out as rewards. Training three or four days a week — balanced, a little boring, on purpose.",
+      "You'll want to go faster around week three. Everyone does. Come talk to me when it happens instead of just doing it.",
+      'Take your time choosing. Meet the others. The right fit is the one you trust when the scale is quiet.',
     ],
     commit: [
-      "Alright, {NAME}. Let's do this together.",
-      "I'll see you in the Training Hub. We've got work to do.",
+      'Alright, {NAME}. We do this once, and we do it right.',
+      "I'll see you in the Training Hub. First job: your rate — in kilos, out loud.",
     ],
   },
-  tobias: {
+  // Retired (Roster v1) — never offered on a roster; entries kept empty
+  // because the record is exhaustive over CharacterId.
+  tobias: { intro: [], commit: [] },
+  marco: { intro: [], commit: [] },
+  renata: {
+    intro: [
+      'Hello, {NAME}. Renata.',
+      "Here's my whole programme, so you can decide quickly. Three sessions a week, full body. Squat, hinge, press, pull, carry. Four to six reps, two or three sets, full rest in between. Protein at two grams per kilo. Then you go home.",
+      "It will look small. It's supposed to. Your diet does the losing; the training keeps your muscle while it happens. If your squat holds while the scale drops, you did it perfectly.",
+      "I rowed twice a day for nine years and stayed exactly the same weight. So I've tested the alternative more thoroughly than most.",
+      "Meet the others — take your time. I'll say this once: small and consistent beats impressive and abandoned.",
+    ],
+    commit: [
+      "Good. A sensible decision, efficiently made — we'll get along.",
+      "Training Hub when you're ready. Bring nothing. The programme is already short.",
+    ],
+  },
+  marcus: {
+    intro: [
+      'Alright, {NAME}! Marcus.',
+      "Manchester, boxing gyms, and these days a warehouse with no mirrors in it — that last part's deliberate. The mirror tells you what you look like. I'd rather you found out what you can do.",
+      "With me it's four or five sessions a week, thirty to forty minutes. Kettlebells, sleds, rounds on the bag, rowing intervals. You do twelve minutes of work, and next week you beat it. That's the whole progression. Don't overthink it.",
+      "Fair warning — I'm not selling you calorie burn. The diet handles the weight. I'm building you an engine: stairs, football with the kids, a body that can work.",
+      "Go meet the rest — they're brilliant. Pick whoever gets you moving.",
+    ],
+    commit: [
+      'Yes! Come find me in the Training Hub.',
+      "First session's twelve minutes. You'll be fine. Probably.",
+    ],
+  },
+  priya: {
     intro: [
       'Hello, {NAME}.',
-      "I'm Tobias. I work with people who want to lose weight — specifically with people who've thought about this more than once. Who already know what calories are. Who've tried things before. If that's you, we're going to get along.",
-      'My approach is a little different. I care less about the workouts themselves — those are the easy part — and more about why you eat at 11pm, how your sleep affects your hunger, what your stress does to your hormones. The body is downstream of behavior. We work on the behavior first.',
-      "I'd be honored to work with you if you choose me. But take your time. Meet the others. The fit matters more than you realize.",
+      "I'm Priya. Twenty-five minutes, three times a week. That's the plan. I know it doesn't feel like enough. It isn't enough — it's just enough that you'll actually do it, which is a completely different thing.",
+      'Four or five movements that never change, a do-it-at-home version of everything, and progression so boring you barely notice it happening. I spent eleven years as a physiotherapist writing perfect programmes for people who did none of them. I stopped.',
+      "And I'll say this plainly, because it isn't a secret: this is less than optimal, on purpose. Optimal, you'd quit. This, you'll still be doing next year.",
+      'Meet the others — genuinely. If a bigger plan fits your life, one of them is the better pick.',
     ],
-    commit: ["Good. We'll work well together. I'll see you in the Training Hub when you're ready."],
+    commit: [
+      "Lovely. Three sessions, twenty-five minutes, and you never have to be impressive.",
+      "Training Hub whenever suits. It'll still be there Wednesday if Tuesday goes sideways.",
+    ],
   },
-  marco: {
+  noa: {
     intro: [
-      'Hey, hey, {NAME}.',
-      "I'm Marco. I'm from São Paulo, and I grew up playing football in the streets before I fell in love with this whole world. Here's the thing about how I work — fitness should make your life better, not consume it. That's it. That's the whole philosophy.",
-      "For weight loss — we're going to move a lot, we're going to keep it interesting, and we're going to celebrate the wins along the way. Not because I'm trying to be fun for the sake of it, but because consistency comes easier when you actually want to show up.",
-      'Look around. Meet the others. Pick whoever feels right.',
+      'Hello, {NAME}. Noa.',
+      "Here's my offer, complete. Twelve weeks. Not twelve weeks and we'll see — twelve weeks, and then we stop, and then I teach you the harder part, which is keeping it.",
+      "The deficit is real and you will be hungry. I won't pretend otherwise and I won't apologize for it. You'll lift heavy four times a week and hit your protein every day — that's what decides whether you keep your muscle or just get smaller. Weigh-ins weekly, against numbers I've given you in advance.",
+      "One thing before you choose me: I don't take everyone. If you're barely sleeping, or life is rough right now, I'll say so and walk you to a colleague myself. This method needs a stable base.",
+      "Meet the others. If you want the long road, they're excellent at it. If you want an edge you can see — that's me.",
     ],
-    commit: ["Yes! Let's go. Come find me in the Training Hub — we've got things to do."],
+    commit: [
+      'Good. Twelve weeks. Mark the end date now — it matters more than the start.',
+      'Training Hub. We begin with your numbers, not a pep talk.',
+    ],
   },
   ananya: {
     intro: [
@@ -620,8 +661,25 @@ const GOAL_FRAMING: Record<PrimaryGoal, string> = {
   'general-fitness': 'building all-round fitness you keep',
 };
 
-/** Kael frames the trainer choice — the one goal-dependent line of Phase 3. */
+/**
+ * Kael frames the trainer choice — the one goal-dependent beat of
+ * Phase 3. Weight loss gets the Roster v1 framing: five coaches who
+ * genuinely disagree about the road, which is why the user chooses.
+ */
 function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
+  if (goal === 'weight-loss') {
+    return {
+      kind: 'say',
+      speaker: 'kael',
+      skippable: true,
+      lines: [
+        'Alright. Now we put the rest of your team together. First — your trainer.',
+        "Five of my people do weight loss, and they don't agree with each other about how. I want to be upfront about that, because it's not a flaw in the roster.",
+        "They all get people to the same place. They just don't agree on the road. That's not a problem — it's why you get to choose.",
+        'Meet whoever you like. The right one is whoever feels right to you, not whoever I think is best on paper.',
+      ],
+    };
+  }
   return {
     kind: 'say',
     speaker: 'kael',
