@@ -1,14 +1,20 @@
 import type { Character } from './types';
 
 /**
- * Marco — weight-loss trainer. São Paulo. Football and functional fitness
- * roots; makes fitness sustainable by making it enjoyable.
+ * Marco — RETIRED weight-loss trainer (Trainer Roster v1 supersedes
+ * him: designed personality-first, not philosophy-first). He stays
+ * registered because tester data references him — old plans, threads,
+ * and events must keep resolving — but he appears on no roster and no
+ * new relationship can start with him. NOTE: the new Marcus
+ * (Adeyemi-Boateng, Manchester) is a different person entirely; the
+ * name similarity is accepted, never merged.
  */
 export const marco: Character = {
   id: 'marco',
   name: 'Marco',
   role: 'trainer',
   goalSpecialty: 'weight-loss',
+  retired: true,
   origin: 'São Paulo, Brazil',
   personalityWords: 'Energetic. Practical. Encouraging.',
   philosophy: 'Show up, move well, celebrate the wins.',

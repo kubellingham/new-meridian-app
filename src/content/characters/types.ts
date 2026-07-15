@@ -18,13 +18,21 @@ export type CharacterRole = 'consultant' | 'trainer' | 'nutrition-specialist';
  */
 export type TrainerGoal = 'weight-loss' | 'build-muscle' | 'general-fitness';
 
-/** Stable identifiers for every V1 character. */
+/**
+ * Stable identifiers for every character, including retired ones —
+ * persisted data (plans, threads, events) references retired ids
+ * forever, so ids are never removed from this union.
+ */
 export type CharacterId =
   | 'kael'
   | 'sera'
   | 'cassidy'
-  | 'tobias'
-  | 'marco'
+  | 'renata'
+  | 'marcus'
+  | 'priya'
+  | 'noa'
+  | 'tobias' // retired
+  | 'marco' // retired
   | 'ananya'
   | 'dmitri'
   | 'kofi'
@@ -42,8 +50,13 @@ export type CharacterId =
 
 export interface Character {
   id: CharacterId;
-  /** Display name, e.g. "Mei Lin". */
+  /** Callable name — what teammates and chat headers use, e.g. "Renata". */
   name: string;
+  /**
+   * Full name shown on selection/roster cards where weight matters,
+   * e.g. "Renata Alves". Falls back to `name` when unset.
+   */
+  fullName?: string;
   role: CharacterRole;
   /** Where they're from — shown on selection cards. */
   origin: string;
@@ -72,4 +85,11 @@ export interface Character {
    * filtering in onboarding. Unset for consultants and NS.
    */
   goalSpecialty?: TrainerGoal;
+  /**
+   * Retired characters stay registered (persisted plans, threads, and
+   * events reference them forever — getCharacter must keep resolving),
+   * but they are excluded from every roster and picker. No new
+   * relationship can start with a retired character.
+   */
+  retired?: boolean;
 }

@@ -1,14 +1,18 @@
 import type { Character } from './types';
 
 /**
- * Tobias — weight-loss trainer. Berlin. Endurance athlete who burned out
- * and rebuilt; works on behavior first, workouts second.
+ * Tobias — RETIRED weight-loss trainer (Trainer Roster v1 supersedes
+ * him: designed personality-first, not philosophy-first). He stays
+ * registered because tester data references him — old plans, threads,
+ * and events must keep resolving — but he appears on no roster and no
+ * new relationship can start with him.
  */
 export const tobias: Character = {
   id: 'tobias',
   name: 'Tobias',
   role: 'trainer',
   goalSpecialty: 'weight-loss',
+  retired: true,
   origin: 'Berlin, Germany',
   personalityWords: 'Cerebral. Empathetic. Strategic.',
   philosophy: 'The body loses weight when the habits change.',
