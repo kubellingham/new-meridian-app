@@ -16,21 +16,23 @@ import {
 } from '../index';
 
 describe('character registry completeness', () => {
-  it('contains exactly 19 characters', () => {
-    expect(CHARACTERS).toHaveLength(19);
+  it('contains exactly 23 characters (21 active + 2 retired)', () => {
+    expect(CHARACTERS).toHaveLength(23);
   });
 
-  it('has 2 consultants, 9 trainers, and 8 nutrition specialists', () => {
+  it('has 2 consultants, 11 active trainers, and 8 nutrition specialists', () => {
     expect(CONSULTANTS.map((c) => c.id).sort()).toEqual(['kael', 'sera']);
-    expect(TRAINERS).toHaveLength(9);
+    expect(TRAINERS).toHaveLength(11);
     expect(NUTRITION_SPECIALISTS).toHaveLength(8);
   });
 
-  it('gives every goal a roster of exactly three trainers', () => {
+  it('gives every goal its roster of active trainers', () => {
     expect(getTrainersForGoal('weight-loss').map((c) => c.id).sort()).toEqual([
       'cassidy',
-      'marco',
-      'tobias',
+      'marcus',
+      'noa',
+      'priya',
+      'renata',
     ]);
     expect(getTrainersForGoal('build-muscle').map((c) => c.id).sort()).toEqual([
       'ananya',
@@ -42,6 +44,22 @@ describe('character registry completeness', () => {
       'ingrid',
       'sam',
     ]);
+  });
+
+  it('keeps retired trainers resolvable but off every roster', () => {
+    for (const id of ['tobias', 'marco'] as const) {
+      const retired = getCharacter(id);
+      expect(retired.retired).toBe(true);
+      expect(TRAINERS.map((t) => t.id)).not.toContain(id);
+      expect(getTrainersForGoal('weight-loss').map((t) => t.id)).not.toContain(id);
+    }
+  });
+
+  it('gives every weight-loss trainer a full name for roster cards', () => {
+    for (const trainer of getTrainersForGoal('weight-loss')) {
+      expect(trainer.fullName).toBeDefined();
+      expect(trainer.fullName).toContain(trainer.name);
+    }
   });
 
   it('gives every trainer (and only trainers) a goal specialty', () => {
