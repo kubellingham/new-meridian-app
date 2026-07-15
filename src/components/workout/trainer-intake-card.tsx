@@ -24,7 +24,7 @@ export interface TrainerIntakeResult {
 
 /** One line, per trainer, opening the intake in their voice. */
 const INTAKE_LEAD_INS: Partial<Record<CharacterId, string>> = {
-  cassidy: 'Three questions before I build anything. Honest answers — the plan only works if it fits your actual life.',
+  cassidy: 'Three questions before I build anything. Honest answers — then you get the plan. The kind nobody posts about.',
   renata: 'Three questions. Then I write the programme. It will be short; that is the design.',
   marcus: "Three quick ones before we start the clock — then I build you something you'll want to beat.",
   priya: "Three questions, and I'm mostly checking how much life you have around the training. Be honest — I've heard everything.",
