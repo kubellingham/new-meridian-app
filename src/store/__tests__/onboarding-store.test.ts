@@ -50,3 +50,22 @@ describe('onboarding progress store', () => {
     expect(useOnboardingStore.getState().answers).toEqual({});
   });
 });
+
+describe('onboarding-store version 2 migration (script v3 restructure)', () => {
+  const migrate = useOnboardingStore.persist.getOptions().migrate!;
+
+  it('resets a v1 mid-flow position but keeps every committed answer', () => {
+    const migrated = migrate(
+      { stepIndex: 11, answers: { name: 'Ana', goal: 'weight-loss', height: '170' } },
+      1,
+    ) as Record<string, unknown>;
+    // Beat positions changed meaning in v3 — the index must not carry over.
+    expect(migrated.stepIndex).toBe(0);
+    expect(migrated.answers).toEqual({ name: 'Ana', goal: 'weight-loss', height: '170' });
+  });
+
+  it('passes v2 state through unchanged', () => {
+    const v2 = { stepIndex: 4, answers: { name: 'Ana' } };
+    expect(migrate(v2, 2)).toBe(v2);
+  });
+});

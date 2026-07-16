@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { HoldToContinue } from '@/src/components/onboarding/hold-to-continue';
 import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import {
   getCharacter,
@@ -205,6 +206,9 @@ function OnboardingFlow() {
     const nsId = answers.ns as CharacterId;
     const startingWeight = Number(answers.startingWeight);
 
+    // Script v3: why-now and coaching preference are no longer asked at
+    // onboarding — they're Sera's to raise in conversation. Nothing here
+    // fakes a default for them.
     const profile: Partial<UserProfile> = {
       birthday: answers.birthday || undefined,
       gender: answers.gender,
@@ -213,7 +217,6 @@ function OnboardingFlow() {
       height: Number(answers.height) || undefined,
       startingWeight: startingWeight || undefined,
       goalWeight: Number(answers.goalWeight) || undefined,
-      coachingPreference: answers.coaching as UserProfile['coachingPreference'],
       culturalBackground: NS_TRADITION[nsId],
     };
 
@@ -221,12 +224,15 @@ function OnboardingFlow() {
     // Starting weight is weigh-in #1 — the trend on Home/Insights builds on it.
     if (startingWeight) logWeight(startingWeight);
 
-    const now = Date.now();
-    const checkIns = [...(emotionalCheckIns ?? [])];
-    if (answers.whyNow) checkIns.push({ at: now, from: 'user', text: `Why now: ${answers.whyNow}` });
-    if (answers.feeling)
-      checkIns.push({ at: now, from: 'user', text: `Starting out, feeling: ${answers.feeling}` });
-    if (checkIns.length > 0) updateSessionFeedback({ emotionalCheckIns: checkIns });
+    // Sera's one question — her opening thread for the first conversation.
+    if (answers.feeling) {
+      updateSessionFeedback({
+        emotionalCheckIns: [
+          ...(emotionalCheckIns ?? []),
+          { at: Date.now(), from: 'user', text: `Starting out, feeling: ${answers.feeling}` },
+        ],
+      });
+    }
 
     const targets = computeTargets(profile, startingWeight || undefined);
     if (targets) updateNutritionState(targets);
@@ -282,6 +288,24 @@ function OnboardingFlow() {
             {continueButton(advance)}
           </>
         );
+
+      // Sera's promise (script v3 beat 13): her lines, then the hold.
+      // Completing it surfaces her completion line via the shared
+      // reaction mechanic, then Kael wraps.
+      case 'hold': {
+        const b = beat;
+        return (
+          <>
+            <SpokenLines speaker={b.speaker} lines={b.lines} ctx={ctx} />
+            <HoldToContinue
+              onComplete={() => {
+                setReactionLines([b.completionLine]);
+                setSubPhase('reacted');
+              }}
+            />
+          </>
+        );
+      }
 
       case 'finish':
         return (

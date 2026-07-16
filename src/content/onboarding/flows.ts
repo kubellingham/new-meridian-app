@@ -1,8 +1,9 @@
 /**
  * The onboarding script, as data — a linear walk of beats Kael and Sera
  * narrate to assemble the user's team and collect exactly what the app
- * needs to run. Text-forward (no voice-over, no portraits). Kael/Sera
- * lines originate from Meridian_Weight_Loss_Onboarding_Script_v1.md;
+ * needs to run. Text-forward (no voice-over, no portraits). The flow
+ * follows Onboarding Script v3 (docs/Meridian_Onboarding_Script_v3.md):
+ * Kael's data collection and the assembly, then Sera at the close;
  * the weight-loss trainer content follows Trainer Roster v1
  * (docs/Meridian_Weight_Loss_Trainer_Roster_v1.md); the dormant
  * build-muscle and general-fitness branches were drafted here with the
@@ -96,7 +97,20 @@ export type OnboardingBeat =
       field: 'trainer' | 'ns';
       prompt: string;
     }
-  | { kind: 'finish'; speaker: CharacterId; lines: string[]; buttonLabel: string };
+  | { kind: 'finish'; speaker: CharacterId; lines: string[]; buttonLabel: string }
+  | {
+      /**
+       * Sera's promise (script v3 beat 13): her lines, then press-and-hold
+       * for ~2.5s to continue. The hold is acceptance of HER promise —
+       * the user promises nothing. Appears exactly once, ever; an
+       * accessibility escape must always exist (the renderer provides it).
+       */
+      kind: 'hold';
+      speaker: CharacterId;
+      lines: string[];
+      /** Spoken when the hold completes, e.g. "Okay. Go on." */
+      completionLine: string;
+    };
 
 /** A specialist's onboarding intro and commit line, in their voice. */
 export interface SpecialistOnboarding {
@@ -534,18 +548,22 @@ function numbersBeat(goal: PrimaryGoal): OnboardingBeat {
 }
 
 /** Sera's section plus the hand-back — identical for every goal. */
-const SERA_BEATS: OnboardingBeat[] = [
+/**
+ * Sera at the close (script v3 beats 12–13). She arrives once the team
+ * exists — she isn't assembled, she's simply there. One question (her
+ * opening thread for the first real conversation), then her promise and
+ * the hold-to-continue. Why-now and coaching preference were cut from
+ * onboarding — they're hers to ask in conversation, where they belong.
+ */
+const SERA_CLOSE_BEATS: OnboardingBeat[] = [
   {
     kind: 'say',
     speaker: 'kael',
     skippable: true,
     lines: [
-      "Before I bring your team in, there's one more person I want you to meet first. She covers the part I don't.",
-      'Sera.',
+      "Before I wrap this up — one more person. She's not someone you pick, and she's not someone I assign. She covers the part I don't.",
     ],
   },
-
-  // — PHASE 2: Sera, emotional + behavioral —
   {
     kind: 'say',
     speaker: 'sera',
@@ -558,44 +576,8 @@ const SERA_BEATS: OnboardingBeat[] = [
   {
     kind: 'cards',
     speaker: 'sera',
-    field: 'whyNow',
-    prompt: 'Quick question, {NAME} — honest answer, not the polished one. Why now?',
-    options: [
-      {
-        value: "It's been building for a while",
-        label: "It's been building for a while",
-        reaction: [
-          "Mm. Yeah. That's how it usually is, honestly. Months of small thoughts, then one day you're just ready. Or ready enough. That's a real place to start from.",
-        ],
-      },
-      {
-        value: 'Something specific happened',
-        label: 'Something specific happened',
-        reaction: [
-          "Okay. Sometimes it takes that. Not always, but sometimes. We'll work with where it brought you, not where it came from.",
-        ],
-      },
-      {
-        value: "I'm ready and that's enough",
-        label: "I'm ready and that's enough",
-        reaction: [
-          "Good. That's actually... yeah, that's enough. Not everyone walks in with that. We'll use it.",
-        ],
-      },
-      {
-        value: "Honestly, I'm not sure",
-        label: "Honestly, I'm not sure",
-        reaction: [
-          "That's a fair answer. We'll figure it out as we go — sometimes the reason becomes clearer once you start moving. Don't worry about naming it today.",
-        ],
-      },
-    ],
-  },
-  {
-    kind: 'cards',
-    speaker: 'sera',
     field: 'feeling',
-    prompt: 'How are you feeling, right now, about where you’re starting from?',
+    prompt: 'How are you feeling about all this?',
     options: [
       {
         value: 'Frustrated',
@@ -632,46 +614,21 @@ const SERA_BEATS: OnboardingBeat[] = [
       ],
     },
   },
+  // Beat 13 — her moment. Constraints (v3): she never promises an
+  // outcome; the refusal to predict is what makes her credible. The hold
+  // is acceptance of HER promise, never an oath from the user. Appears
+  // exactly once, ever — never recurs, never referenced again.
   {
-    kind: 'cards',
+    kind: 'hold',
     speaker: 'sera',
-    field: 'coaching',
-    prompt: 'Last one, {NAME}. When things get hard — and they will — what do you need from us?',
-    options: [
-      {
-        value: 'push',
-        label: "Push me. Don't let me off easy.",
-        reaction: ["Got it. Direct it is. I'll match that — and so will your trainer."],
-      },
-      {
-        value: 'support',
-        label: 'Support me. I respond better to encouragement.',
-        reaction: ["Okay. Encouragement-led. That's a real style and a valid one — we'll lean that way."],
-      },
-      {
-        value: 'both',
-        label: 'A bit of both, depending on the moment.',
-        reaction: ["That's most people, honestly. I'll read the room."],
-      },
-      {
-        value: 'read-as-we-go',
-        label: "I'm not sure yet — read me as we go.",
-        reaction: [
-          "Honestly, that's the most self-aware answer you could give me. Most people pick one and they're wrong about themselves. Letting me read you means I'll get it right — because I'll be paying attention.",
-        ],
-      },
-    ],
-  },
-  {
-    kind: 'say',
-    speaker: 'sera',
-    skippable: true,
     lines: [
-      "Alright. That's what I needed for now. I'll be around — quieter than Kael usually, but always there when you need me. And sometimes when you don't realize you do.",
-      'Kael — back to you.',
+      'Right. Before I let you go.',
+      "I'm not going to tell you how this'll go. Nobody can, and you'd know I was guessing.",
+      "But I'll be here. The whole way. The good weeks and the ones where you don't want to open this app. That part I can promise.",
+      'Hold this for a second.',
     ],
+    completionLine: 'Okay. Go on.',
   },
-
 ];
 
 /** What Kael says the user told him, per goal — his roster framing. */
@@ -702,7 +659,10 @@ function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
         'Alright. Now we put the rest of your team together. First — your trainer.',
         "Five of my people do weight loss, and they don't agree with each other about how. I want to be upfront about that, because it's not a flaw in the roster.",
         "The shapes are genuinely different. Cassidy works at about half a kilo a week, open-ended — a long project, and she'd tell you that's the point. Noa works in twelve-week blocks at a real pace, and then stops. On purpose.",
-        "Renata, Marcus, and Priya don't run on the scale at all — for them it's whether your strength holds, what your body can do, whether you're still training next year. The weight follows.",
+        // v3 note: an earlier draft ended this line with "the weight
+        // follows" — cut. None of those three makes that claim; it was
+        // Kael smuggling an outcome promise in through the back door.
+        "Renata, Marcus, and Priya don't run on the scale at all — for them it's whether your strength holds, what your body can do, whether you're still training next year.",
         "They all get people to the same place. They just don't agree on the road — that's why you get to choose. Meet whoever you like; the right one is whoever feels right to you, not whoever I think is best on paper.",
       ],
     };
@@ -748,6 +708,10 @@ const CLOSING_BEATS: OnboardingBeat[] = [
     field: 'ns',
     prompt: "Tap whoever you'd like to meet.",
   },
+
+  // — Sera arrives + her promise (v3 beats 12–13) — once the team
+  //   exists, before Kael wraps. She is not part of the assembly.
+  ...SERA_CLOSE_BEATS,
 
   // — PHASE 5: Team wrap + Home —
   {
@@ -819,7 +783,6 @@ export function buildOnboardingFlow(goal: PrimaryGoal): OnboardingBeat[] {
   return [
     ...OPENING_BEATS,
     numbersBeat(goal),
-    ...SERA_BEATS,
     trainerFramingBeat(goal),
     ...CLOSING_BEATS,
   ];

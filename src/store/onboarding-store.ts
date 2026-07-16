@@ -47,9 +47,20 @@ export const useOnboardingStore = create<OnboardingProgressState>()(
       // Persistence contract: any breaking schema change MUST bump
       // `version` and extend `migrate` to carry old data forward —
       // zustand otherwise drops persisted state silently, which would
-      // restart a tester's onboarding on an OTA update.
-      version: 1,
-      migrate: (persisted) => persisted as never,
+      // restart a tester's onboarding on an OTA update. Version 2 is the
+      // script-v3 restructure: beat positions changed meaning, so a
+      // persisted mid-flow stepIndex from v1 points at the wrong beat
+      // (worst case: past the roster with no trainer picked). The
+      // migration resets the position but keeps every committed answer —
+      // affected users replay quickly, nobody lands on a broken beat.
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version < 2) {
+          const state = persisted as { answers?: Record<string, string> };
+          return { stepIndex: 0, answers: state.answers ?? {} } as never;
+        }
+        return persisted as never;
+      },
       // Allowlist: progress only. hasHydrated is runtime-only state.
       partialize: ({ stepIndex, answers }) => ({ stepIndex, answers }),
       onRehydrateStorage: () => (state) => {

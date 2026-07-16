@@ -119,6 +119,13 @@ function shareableFacts(data: SharedUserData): string[] {
   if (profile.coachingPreference) {
     lines.push(`prefers a ${profile.coachingPreference} coaching style`);
   }
+  // The latest emotional check-in (Sera's onboarding question, and her
+  // future in-conversation notes) — her opening thread. Absent when
+  // never captured; nothing is faked.
+  const checkIns = data.sessionFeedback.emotionalCheckIns;
+  if (checkIns && checkIns.length > 0) {
+    lines.push(`most recent emotional check-in: "${checkIns[checkIns.length - 1].text}"`);
+  }
 
   if (programme.currentProgrammeName) {
     const block = programme.currentBlock ? `, currently in ${programme.currentBlock}` : '';
