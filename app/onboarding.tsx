@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -106,6 +107,8 @@ function OnboardingFlow() {
   // Per-beat input state — reset on every advance/back.
   const [textValue, setTextValue] = useState('');
   const [dateParts, setDateParts] = useState({ day: '', month: '', year: '' });
+  // Bumped per field when input is rejected — drives the shake animation.
+  const [dateShakes, setDateShakes] = useState({ day: 0, month: 0, year: 0 });
   const [numberValues, setNumberValues] = useState<Record<string, string>>({});
   const [freeText, setFreeText] = useState('');
   const [showFreeText, setShowFreeText] = useState(false);
@@ -130,11 +133,39 @@ function OnboardingFlow() {
     [answers],
   );
 
+  /**
+   * Applies a birthday field edit with shake-and-clear: digits that can
+   * never become a valid day/month/year (74, 56, 3000) are rejected the
+   * moment they're typed — the field shakes and empties. When all three
+   * parts complete an impossible date, the culprit gets the shake: the
+   * day for a calendar overflow (31/02), the year for a future date.
+   */
+  function updateDatePart(part: 'day' | 'month' | 'year', value: string) {
+    function reject(field: 'day' | 'month' | 'year', next: typeof dateParts) {
+      setDateParts({ ...next, [field]: '' });
+      setDateShakes((s) => ({ ...s, [field]: s[field] + 1 }));
+    }
+    if (value !== '' && !isPlausibleDatePart(part, value)) {
+      return reject(part, dateParts);
+    }
+    const next = { ...dateParts, [part]: value };
+    const complete =
+      Number(next.day) >= 1 && Number(next.month) >= 1 && next.year.length === 4;
+    if (value !== '' && complete && !isValidDate(next)) {
+      const y = Number(next.year);
+      const date = new Date(y, Number(next.month) - 1, Number(next.day));
+      const realButFuture = date.getDate() === Number(next.day) && date.getFullYear() === y;
+      return reject(realButFuture ? 'year' : 'day', next);
+    }
+    setDateParts(next);
+  }
+
   function resetInputs() {
     setSubPhase('prompt');
     setReactionLines([]);
     setTextValue('');
     setDateParts({ day: '', month: '', year: '' });
+    setDateShakes({ day: 0, month: 0, year: 0 });
     setNumberValues({});
     setFreeText('');
     setShowFreeText(false);
@@ -296,9 +327,9 @@ function OnboardingFlow() {
           <>
             <SpokenLines speaker={b.speaker} lines={[b.prompt]} ctx={ctx} />
             <View style={styles.dateRow}>
-              <DateField label="Day" value={dateParts.day} max={2} onChange={(day) => setDateParts((p) => ({ ...p, day }))} testID="ob-date-day" />
-              <DateField label="Month" value={dateParts.month} max={2} onChange={(month) => setDateParts((p) => ({ ...p, month }))} testID="ob-date-month" />
-              <DateField label="Year" value={dateParts.year} max={4} onChange={(year) => setDateParts((p) => ({ ...p, year }))} testID="ob-date-year" />
+              <DateField label="Day" value={dateParts.day} max={2} onChange={(v) => updateDatePart('day', v)} shakeToken={dateShakes.day} testID="ob-date-day" />
+              <DateField label="Month" value={dateParts.month} max={2} onChange={(v) => updateDatePart('month', v)} shakeToken={dateShakes.month} testID="ob-date-month" />
+              <DateField label="Year" value={dateParts.year} max={4} onChange={(v) => updateDatePart('year', v)} shakeToken={dateShakes.year} testID="ob-date-year" />
             </View>
             {continueButton(
               () =>
@@ -552,16 +583,30 @@ function DateField({
   value,
   max,
   onChange,
+  shakeToken,
   testID,
 }: {
   label: string;
   value: string;
   max: number;
   onChange: (v: string) => void;
+  /** Increments whenever the field's last input was rejected — shakes. */
+  shakeToken: number;
   testID: string;
 }) {
+  const shake = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (shakeToken === 0) return;
+    Animated.sequence(
+      [-8, 8, -5, 5, 0].map((toValue) =>
+        Animated.timing(shake, { toValue, duration: 55, useNativeDriver: true }),
+      ),
+    ).start();
+  }, [shakeToken, shake]);
+
   return (
-    <View style={styles.dateField}>
+    <Animated.View style={[styles.dateField, { transform: [{ translateX: shake }] }]}>
       <AppText variant="caption" color={colors.muted}>
         {label}
       </AppText>
@@ -574,16 +619,39 @@ function DateField({
         style={styles.dateInput}
         testID={testID}
       />
-    </View>
+    </Animated.View>
   );
 }
 
+const BIRTH_YEAR_MIN = 1900;
+
+/**
+ * Whether a partly-typed date part could still become valid — the gate
+ * behind shake-and-clear. '0' passes as a prefix of 01–09; '74' as a
+ * day or '56' as a month can never become valid and gets rejected the
+ * moment it's typed. Year prefixes are checked against 1900..current.
+ */
+function isPlausibleDatePart(part: 'day' | 'month' | 'year', value: string): boolean {
+  const n = Number(value);
+  if (part === 'day') return value === '0' || (n >= 1 && n <= 31);
+  if (part === 'month') return value === '0' || (n >= 1 && n <= 12);
+  // Year: some year in [min, max] must start with these digits.
+  const max = new Date().getFullYear();
+  const scale = 10 ** (4 - value.length);
+  return n * scale <= max && (n + 1) * scale - 1 >= BIRTH_YEAR_MIN;
+}
+
+/** Calendar-true and not in the future — 31/02 and next month both fail. */
 function isValidDate({ day, month, year }: { day: string; month: string; year: string }): boolean {
+  if (year.length !== 4) return false;
   const d = Number(day);
   const m = Number(month);
   const y = Number(year);
-  const nowYear = new Date().getFullYear();
-  return d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900 && y <= nowYear && year.length === 4;
+  if (y < BIRTH_YEAR_MIN || d < 1 || m < 1) return false;
+  const date = new Date(y, m - 1, d);
+  const real =
+    date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+  return real && date.getTime() <= Date.now();
 }
 
 function toISODate({ day, month, year }: { day: string; month: string; year: string }): string {
