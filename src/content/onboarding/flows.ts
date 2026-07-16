@@ -370,6 +370,14 @@ export const NS_TRADITION: Partial<Record<CharacterId, string>> = {
 };
 
 /**
+ * Weight-loss-first pivot: the muscle and general-fitness goals are
+ * dormant — shown on the goal card so the product's shape is honest,
+ * but not selectable. Existing users who picked them keep working;
+ * new users all start on weight loss.
+ */
+const DORMANT_GOAL_NOTE = 'Paused — Meridian is all-in on weight loss right now.';
+
+/**
  * Beats shared by every goal, up through the activity question. The goal
  * card beat lives here (its reactions differ per card, not per flow), so
  * the prefix is identical whichever goal the user ends up picking.
@@ -419,7 +427,7 @@ const OPENING_BEATS: OnboardingBeat[] = [
     speaker: 'kael',
     field: 'goal',
     prompt:
-      'Okay, {NAME}. This one shapes everything we set up for you. What’s the main thing you want to work on?',
+      'Okay, {NAME}. This one shapes everything we set up for you. Fair warning — right now Meridian does one thing properly: weight loss. The other paths are parked, not gone.',
     options: [
       {
         value: 'weight-loss',
@@ -429,9 +437,14 @@ const OPENING_BEATS: OnboardingBeat[] = [
           "We'll build this properly. Not fast — properly. There's a difference, and it matters.",
         ],
       },
+      // Dormant goals (weight-loss-first pivot): visible so the product's
+      // shape is honest, not selectable. Reactions kept for the day they
+      // reopen; existing users on these goals are untouched elsewhere.
       {
         value: 'build-muscle',
         label: 'Build muscle',
+        disabled: true,
+        disabledNote: DORMANT_GOAL_NOTE,
         reaction: [
           'Building muscle. Good.',
           "That's a patient game — the kind that rewards structure. Structure is what I do.",
@@ -440,6 +453,8 @@ const OPENING_BEATS: OnboardingBeat[] = [
       {
         value: 'general-fitness',
         label: 'General fitness',
+        disabled: true,
+        disabledNote: DORMANT_GOAL_NOTE,
         reaction: [
           'General fitness. Honestly — underrated answer.',
           'Strong, mobile, durable. Everything else in life gets easier from there. We build the base properly.',
