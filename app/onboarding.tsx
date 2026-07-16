@@ -26,6 +26,7 @@ import {
   type OnboardingBeat,
 } from '@/src/content/onboarding/flows';
 import { computeTargets } from '@/src/services/nutrition-targets';
+import { useOnboardingStore } from '@/src/store/onboarding-store';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
@@ -77,6 +78,16 @@ function SpokenLines({
  * the locked script.
  */
 export default function OnboardingScreen() {
+  // Progress is persisted (see onboarding-store); don't render — and
+  // never flash step one — until rehydration says where the user was.
+  const hasHydrated = useOnboardingStore((s) => s.hasHydrated);
+  if (!hasHydrated) {
+    return <View style={{ flex: 1, backgroundColor: colors.base }} />;
+  }
+  return <OnboardingFlow />;
+}
+
+function OnboardingFlow() {
   const completeSetup = useUserStore((s) => s.completeSetup);
   const updateUserProfile = useUserDataStore((s) => s.updateUserProfile);
   const updateNutritionState = useUserDataStore((s) => s.updateNutritionState);
@@ -84,8 +95,13 @@ export default function OnboardingScreen() {
   const updateSessionFeedback = useUserDataStore((s) => s.updateSessionFeedback);
   const emotionalCheckIns = useUserDataStore((s) => s.sessionFeedback.emotionalCheckIns);
 
-  const [stepIndex, setStepIndex] = useState(0);
-  const [answers, setAnswers] = useState<Answers>({});
+  // Progress lives in the persisted onboarding store so backgrounding or
+  // process death mid-flow resumes at the same beat with answers intact.
+  const storedStepIndex = useOnboardingStore((s) => s.stepIndex);
+  const answers = useOnboardingStore((s) => s.answers);
+  const setStepIndex = useOnboardingStore((s) => s.setStepIndex);
+  const mergeAnswers = useOnboardingStore((s) => s.mergeAnswers);
+  const resetProgress = useOnboardingStore((s) => s.reset);
   // 'prompt' collects input; 'reacted' shows the speaker's response, then advances.
   const [subPhase, setSubPhase] = useState<'prompt' | 'reacted'>('prompt');
   const [reactionLines, setReactionLines] = useState<string[]>([]);
@@ -103,6 +119,8 @@ export default function OnboardingScreen() {
   // prefix is identical, so rebuilding mid-walk keeps stepIndex valid.
   const goal = (answers.goal as PrimaryGoal | undefined) ?? 'weight-loss';
   const flow = useMemo(() => buildOnboardingFlow(goal), [goal]);
+  // Clamp a restored index in case a future update ever shortens the flow.
+  const stepIndex = Math.min(storedStepIndex, flow.length - 1);
   const beat = flow[stepIndex];
   const total = flow.length;
 
@@ -129,21 +147,21 @@ export default function OnboardingScreen() {
 
   function advance() {
     if (stepIndex < total - 1) {
-      setStepIndex((i) => i + 1);
+      setStepIndex(stepIndex + 1);
       resetInputs();
     }
   }
 
   function goBack() {
     if (stepIndex > 0) {
-      setStepIndex((i) => i - 1);
+      setStepIndex(stepIndex - 1);
       resetInputs();
     }
   }
 
   /** Store answers and show the speaker's reaction, or advance if none. */
   function commitAnswers(patch: Answers, reaction: string[]) {
-    setAnswers((a) => ({ ...a, ...patch }));
+    mergeAnswers(patch);
     if (reaction.length === 0) {
       advance();
       return;
@@ -185,6 +203,8 @@ export default function OnboardingScreen() {
     if (targets) updateNutritionState(targets);
 
     completeSetup({ name, nsId, trainerId });
+    // Onboarding is done — clear the in-flight progress record.
+    resetProgress();
     router.replace('/(tabs)');
   }
 
@@ -418,7 +438,7 @@ export default function OnboardingScreen() {
           <Button
             label={`Choose ${met.name}`}
             onPress={() => {
-              setAnswers((a) => ({ ...a, [b.field]: metCharacter }));
+              mergeAnswers({ [b.field]: metCharacter });
               setCommitted(true);
             }}
             style={styles.cta}

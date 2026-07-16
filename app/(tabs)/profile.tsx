@@ -6,6 +6,7 @@ import { AppText, Button, Card, Screen } from '@/src/components/ui';
 import { CONSULTANTS, getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { useChatStore } from '@/src/store/chat-store';
+import { useOnboardingStore } from '@/src/store/onboarding-store';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, spacing } from '@/src/theme/theme';
@@ -39,6 +40,7 @@ export default function ProfileScreen() {
   const resetUser = useUserStore((s) => s.reset);
   const clearChats = useChatStore((s) => s.clearAll);
   const resetUserData = useUserDataStore((s) => s.reset);
+  const resetOnboarding = useOnboardingStore((s) => s.reset);
 
   const ns = nsId ? getCharacter(nsId) : null;
   const trainer = trainerId ? getCharacter(trainerId) : null;
@@ -48,6 +50,7 @@ export default function ProfileScreen() {
     clearChats();
     resetUser();
     resetUserData();
+    resetOnboarding();
     router.replace('/onboarding');
   }
 
