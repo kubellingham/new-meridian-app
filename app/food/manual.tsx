@@ -1,9 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Button, Screen } from '@/src/components/ui';
+import { AppText, Button, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { makeFoodLogId, MEAL_SLOTS, todayLocalISODate } from '@/src/services/food-log';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
@@ -67,138 +67,143 @@ export default function ManualFoodScreen() {
 
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.backButton}
-            testID="manual-back"
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <AppText variant="title">Add food</AppText>
-        </View>
-
-        <AppText variant="label" style={styles.fieldLabel}>
-          What is it?
-        </AppText>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Jollof rice with chicken"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-          testID="manual-name"
-        />
-
-        <AppText variant="label" style={styles.fieldLabel}>
-          Calories (per serving)
-        </AppText>
-        <TextInput
-          value={calories}
-          onChangeText={setCalories}
-          placeholder="e.g. 550"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-          keyboardType="numeric"
-          testID="manual-calories"
-        />
-
-        <View style={styles.macroRow}>
-          <View style={styles.macroField}>
-            <AppText variant="label" style={styles.fieldLabel}>
-              Protein g
-            </AppText>
-            <TextInput
-              value={protein}
-              onChangeText={setProtein}
-              placeholder="—"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
-              keyboardType="numeric"
-              testID="manual-protein"
-            />
-          </View>
-          <View style={styles.macroField}>
-            <AppText variant="label" style={styles.fieldLabel}>
-              Carbs g
-            </AppText>
-            <TextInput
-              value={carbs}
-              onChangeText={setCarbs}
-              placeholder="—"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
-              keyboardType="numeric"
-              testID="manual-carbs"
-            />
-          </View>
-          <View style={styles.macroField}>
-            <AppText variant="label" style={styles.fieldLabel}>
-              Fat g
-            </AppText>
-            <TextInput
-              value={fats}
-              onChangeText={setFats}
-              placeholder="—"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
-              keyboardType="numeric"
-              testID="manual-fats"
-            />
-          </View>
-        </View>
-
-        <AppText variant="label" style={styles.fieldLabel}>
-          Servings
-        </AppText>
-        <TextInput
-          value={servings}
-          onChangeText={setServings}
-          placeholder="1"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-          keyboardType="numeric"
-          testID="manual-servings"
-        />
-
-        <AppText variant="label" style={styles.fieldLabel}>
-          Meal
-        </AppText>
-        <View style={styles.mealRow}>
-          {MEAL_SLOTS.map((slot) => (
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
             <Pressable
-              key={slot}
-              onPress={() => setMeal(slot)}
-              style={[styles.mealChip, meal === slot && styles.mealChipActive]}
-              testID={`manual-meal-${slot}`}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.backButton}
+              testID="manual-back"
             >
-              <AppText variant="caption" color={meal === slot ? colors.text : colors.muted}>
-                {slot}
-              </AppText>
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
             </Pressable>
-          ))}
-        </View>
+            <AppText variant="title">Add food</AppText>
+          </View>
 
-        <Button
-          label="Log it"
-          onPress={handleSave}
-          disabled={!canSave}
-          style={styles.save}
-          testID="manual-save"
-        />
-      </ScrollView>
+          <AppText variant="label" style={styles.fieldLabel}>
+            What is it?
+          </AppText>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Jollof rice with chicken"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            testID="manual-name"
+          />
+
+          <AppText variant="label" style={styles.fieldLabel}>
+            Calories (per serving)
+          </AppText>
+          <TextInput
+            value={calories}
+            onChangeText={setCalories}
+            placeholder="e.g. 550"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            keyboardType="numeric"
+            testID="manual-calories"
+          />
+
+          <View style={styles.macroRow}>
+            <View style={styles.macroField}>
+              <AppText variant="label" style={styles.fieldLabel}>
+                Protein g
+              </AppText>
+              <TextInput
+                value={protein}
+                onChangeText={setProtein}
+                placeholder="—"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+                keyboardType="numeric"
+                testID="manual-protein"
+              />
+            </View>
+            <View style={styles.macroField}>
+              <AppText variant="label" style={styles.fieldLabel}>
+                Carbs g
+              </AppText>
+              <TextInput
+                value={carbs}
+                onChangeText={setCarbs}
+                placeholder="—"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+                keyboardType="numeric"
+                testID="manual-carbs"
+              />
+            </View>
+            <View style={styles.macroField}>
+              <AppText variant="label" style={styles.fieldLabel}>
+                Fat g
+              </AppText>
+              <TextInput
+                value={fats}
+                onChangeText={setFats}
+                placeholder="—"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+                keyboardType="numeric"
+                testID="manual-fats"
+              />
+            </View>
+          </View>
+
+          <AppText variant="label" style={styles.fieldLabel}>
+            Servings
+          </AppText>
+          <TextInput
+            value={servings}
+            onChangeText={setServings}
+            placeholder="1"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            keyboardType="numeric"
+            testID="manual-servings"
+          />
+
+          <AppText variant="label" style={styles.fieldLabel}>
+            Meal
+          </AppText>
+          <View style={styles.mealRow}>
+            {MEAL_SLOTS.map((slot) => (
+              <Pressable
+                key={slot}
+                onPress={() => setMeal(slot)}
+                style={[styles.mealChip, meal === slot && styles.mealChipActive]}
+                testID={`manual-meal-${slot}`}
+              >
+                <AppText variant="caption" color={meal === slot ? colors.text : colors.muted}>
+                  {slot}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+
+          <Button
+            label="Log it"
+            onPress={handleSave}
+            disabled={!canSave}
+            style={styles.save}
+            testID="manual-save"
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     paddingBottom: spacing.xxl,
   },

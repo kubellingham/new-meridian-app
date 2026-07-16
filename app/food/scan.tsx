@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRef, useState } from 'react';
 
 import { FoodConfirmList } from '@/src/components/diet';
-import { AppText, Button, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { lookupBarcode } from '@/src/services/food-database';
 import { makeFoodLogId, MEAL_SLOTS, todayLocalISODate } from '@/src/services/food-log';
 import type { ParsedFood } from '@/src/services/food-logging';
@@ -105,132 +105,137 @@ export default function FoodScanScreen() {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.backButton}
-            testID="scan-back"
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <AppText variant="title">Scan a barcode</AppText>
-        </View>
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.backButton}
+              testID="scan-back"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+            <AppText variant="title">Scan a barcode</AppText>
+          </View>
 
-        {status.kind === 'found' ? (
-          <>
-            <FoodConfirmList
-              foods={[{ item: status.item, servings: 1 }]}
-              defaultMeal={meal}
-              onConfirm={handleConfirm}
-            />
-            <Button
-              label="Scan another instead"
-              variant="ghost"
-              onPress={resumeScanning}
-              testID="scan-again"
-            />
-          </>
-        ) : status.kind === 'not-found' ? (
-          <Card tone="panel" style={styles.forkCard}>
-            <AppText variant="subtitle">Not in the database</AppText>
-            <AppText variant="caption" color={colors.muted} style={styles.forkBody}>
-              Barcode {status.barcode} isn&apos;t listed yet — happens a lot with local
-              products. Two good ways forward:
-            </AppText>
-            <Button
-              label="Photograph it instead"
-              onPress={() =>
-                router.replace({ pathname: '/food/photo', params: { meal } })
-              }
-              testID="scan-to-photo"
-            />
-            <Button
-              label="Add manually"
-              variant="secondary"
-              onPress={() =>
-                router.replace({ pathname: '/food/manual', params: { meal } })
-              }
-              testID="scan-to-manual"
-            />
-            <Button
-              label="Scan again"
-              variant="ghost"
-              onPress={resumeScanning}
-              testID="scan-retry"
-            />
-          </Card>
-        ) : status.kind === 'error' ? (
-          <Card style={styles.errorCard}>
-            <AppText variant="label" color={colors.warning}>
-              Lookup failed
-            </AppText>
-            <AppText variant="caption" style={styles.forkBody}>
-              {status.message}
-            </AppText>
-            <Button label="Try again" variant="secondary" onPress={resumeScanning} testID="scan-error-retry" />
-            <Button
-              label="Add manually"
-              variant="ghost"
-              onPress={() =>
-                router.replace({ pathname: '/food/manual', params: { meal } })
-              }
-            />
-          </Card>
-        ) : !permission?.granted ? (
-          <Card style={styles.permissionCard}>
-            <AppText variant="body">Meridian needs the camera to read barcodes.</AppText>
-            <Button
-              label="Allow camera"
-              onPress={() => void requestPermission()}
-              style={styles.permissionButton}
-              testID="scan-allow-camera"
-            />
-          </Card>
-        ) : (
-          <>
-            <View style={styles.cameraWrap}>
-              <CameraView
-                style={styles.camera}
-                barcodeScannerSettings={{
-                  barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
-                }}
-                onBarcodeScanned={
-                  scanningActive ? ({ data }) => void handleScanned(data) : undefined
+          {status.kind === 'found' ? (
+            <>
+              <FoodConfirmList
+                foods={[{ item: status.item, servings: 1 }]}
+                defaultMeal={meal}
+                onConfirm={handleConfirm}
+              />
+              <Button
+                label="Scan another instead"
+                variant="ghost"
+                onPress={resumeScanning}
+                testID="scan-again"
+              />
+            </>
+          ) : status.kind === 'not-found' ? (
+            <Card tone="panel" style={styles.forkCard}>
+              <AppText variant="subtitle">Not in the database</AppText>
+              <AppText variant="caption" color={colors.muted} style={styles.forkBody}>
+                Barcode {status.barcode} isn&apos;t listed yet — happens a lot with local
+                products. Two good ways forward:
+              </AppText>
+              <Button
+                label="Photograph it instead"
+                onPress={() =>
+                  router.replace({ pathname: '/food/photo', params: { meal } })
+                }
+                testID="scan-to-photo"
+              />
+              <Button
+                label="Add manually"
+                variant="secondary"
+                onPress={() =>
+                  router.replace({ pathname: '/food/manual', params: { meal } })
+                }
+                testID="scan-to-manual"
+              />
+              <Button
+                label="Scan again"
+                variant="ghost"
+                onPress={resumeScanning}
+                testID="scan-retry"
+              />
+            </Card>
+          ) : status.kind === 'error' ? (
+            <Card style={styles.errorCard}>
+              <AppText variant="label" color={colors.warning}>
+                Lookup failed
+              </AppText>
+              <AppText variant="caption" style={styles.forkBody}>
+                {status.message}
+              </AppText>
+              <Button label="Try again" variant="secondary" onPress={resumeScanning} testID="scan-error-retry" />
+              <Button
+                label="Add manually"
+                variant="ghost"
+                onPress={() =>
+                  router.replace({ pathname: '/food/manual', params: { meal } })
                 }
               />
-              {/* Scan frame — capture is automatic; the frame + status make
-                  the camera read as a scanner, not a viewfinder. */}
-              <View pointerEvents="none" style={styles.overlay}>
-                <View
-                  style={[
-                    styles.frame,
-                    status.kind === 'looking-up' && styles.frameActive,
-                  ]}
+            </Card>
+          ) : !permission?.granted ? (
+            <Card style={styles.permissionCard}>
+              <AppText variant="body">Meridian needs the camera to read barcodes.</AppText>
+              <Button
+                label="Allow camera"
+                onPress={() => void requestPermission()}
+                style={styles.permissionButton}
+                testID="scan-allow-camera"
+              />
+            </Card>
+          ) : (
+            <>
+              <View style={styles.cameraWrap}>
+                <CameraView
+                  style={styles.camera}
+                  barcodeScannerSettings={{
+                    barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
+                  }}
+                  onBarcodeScanned={
+                    scanningActive ? ({ data }) => void handleScanned(data) : undefined
+                  }
                 />
+                {/* Scan frame — capture is automatic; the frame + status make
+                    the camera read as a scanner, not a viewfinder. */}
+                <View pointerEvents="none" style={styles.overlay}>
+                  <View
+                    style={[
+                      styles.frame,
+                      status.kind === 'looking-up' && styles.frameActive,
+                    ]}
+                  />
+                </View>
               </View>
-            </View>
-            <View style={styles.statusRow}>
-              {status.kind === 'looking-up' ? (
-                <AppText variant="label" color={colors.primary} style={styles.statusText}>
-                  Found it — checking the database…
-                </AppText>
-              ) : (
-                <AppText variant="caption" color={colors.muted} style={styles.statusText}>
-                  Line the barcode up in the frame — it captures by itself.
-                </AppText>
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
+              <View style={styles.statusRow}>
+                {status.kind === 'looking-up' ? (
+                  <AppText variant="label" color={colors.primary} style={styles.statusText}>
+                    Found it — checking the database…
+                  </AppText>
+                ) : (
+                  <AppText variant="caption" color={colors.muted} style={styles.statusText}>
+                    Line the barcode up in the frame — it captures by itself.
+                  </AppText>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     paddingBottom: spacing.xxl,
     gap: spacing.md,

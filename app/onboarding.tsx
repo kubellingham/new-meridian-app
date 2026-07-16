@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { AppText, Button, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import {
   getCharacter,
   getCharactersByRole,
@@ -484,10 +483,7 @@ function OnboardingFlow() {
 
   return (
     <Screen noPadding>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
         {/* Progress + back-within-flow (reduces "how long is this" anxiety). */}
         <View style={styles.topBar}>
           <Pressable

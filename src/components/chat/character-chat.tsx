@@ -7,7 +7,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -15,7 +14,7 @@ import {
 
 import { ChatInput } from '@/src/components/chat/chat-input';
 import { MessageBubble } from '@/src/components/chat/message-bubble';
-import { AppText, Card, Screen } from '@/src/components/ui';
+import { AppText, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { getCharacter, type CharacterId } from '@/src/content/characters';
 import {
   describeClaudeError,
@@ -259,15 +258,7 @@ export function CharacterChat({
 
   return (
     <Screen noPadding>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        // Push the input above the keyboard on both platforms. On Android
-        // 'undefined' is a no-op that leaves the input covered — edge-to-
-        // edge mode blunts the automatic adjustResize behavior — so we
-        // opt into 'height', which resizes the KAV region to just above
-        // the keyboard.
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
         {/* Character header — persistent presence at the top of the space. */}
         <View style={styles.header}>
           {showBack && (

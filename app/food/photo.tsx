@@ -3,10 +3,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { FoodConfirmList } from '@/src/components/diet';
-import { AppText, Button, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { makeFoodLogId, MEAL_SLOTS, todayLocalISODate } from '@/src/services/food-log';
@@ -113,89 +113,94 @@ export default function FoodPhotoScreen() {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.backButton}
-            testID="photo-back"
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <AppText variant="title">Photo log</AppText>
-        </View>
-
-        {!isClaudeConfigured() && (
-          <Card style={styles.noticeCard}>
-            <AppText variant="caption" color={colors.warning}>
-              {ns.name} is offline — photo logging needs the conversation service.
-            </AppText>
-          </Card>
-        )}
-
-        {photoUri && (
-          <Image source={{ uri: photoUri }} style={styles.preview} contentFit="cover" />
-        )}
-
-        {analyzing ? (
-          <Card style={styles.analyzingCard}>
-            <AppText variant="body">{ns.name} is looking at the plate…</AppText>
-          </Card>
-        ) : (
-          <View style={styles.pickRow}>
-            <Button
-              label="Take a photo"
-              onPress={() => void pick('camera')}
-              style={styles.pickButton}
-              disabled={!isClaudeConfigured()}
-              testID="photo-camera"
-            />
-            <Button
-              label="Choose one"
-              variant="secondary"
-              onPress={() => void pick('library')}
-              style={styles.pickButton}
-              disabled={!isClaudeConfigured()}
-              testID="photo-library"
-            />
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.backButton}
+              testID="photo-back"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+            <AppText variant="title">Photo log</AppText>
           </View>
-        )}
 
-        {reply && (
-          <Card tone="panel" style={styles.replyCard}>
-            <AppText variant="label" color={colors.primary}>
-              {ns.name}
-            </AppText>
-            <AppText variant="body" style={styles.replyText}>
-              {reply}
-            </AppText>
-          </Card>
-        )}
+          {!isClaudeConfigured() && (
+            <Card style={styles.noticeCard}>
+              <AppText variant="caption" color={colors.warning}>
+                {ns.name} is offline — photo logging needs the conversation service.
+              </AppText>
+            </Card>
+          )}
 
-        {foods.length > 0 && (
-          <FoodConfirmList
-            foods={foods}
-            defaultMeal={asMealSlot(mealParam)}
-            onConfirm={handleConfirm}
-            confirmLabel="Log the plate"
-          />
-        )}
+          {photoUri && (
+            <Image source={{ uri: photoUri }} style={styles.preview} contentFit="cover" />
+          )}
 
-        {notice && (
-          <Card style={styles.noticeCard}>
-            <AppText variant="caption" color={colors.warning}>
-              {notice}
-            </AppText>
-          </Card>
-        )}
-      </ScrollView>
+          {analyzing ? (
+            <Card style={styles.analyzingCard}>
+              <AppText variant="body">{ns.name} is looking at the plate…</AppText>
+            </Card>
+          ) : (
+            <View style={styles.pickRow}>
+              <Button
+                label="Take a photo"
+                onPress={() => void pick('camera')}
+                style={styles.pickButton}
+                disabled={!isClaudeConfigured()}
+                testID="photo-camera"
+              />
+              <Button
+                label="Choose one"
+                variant="secondary"
+                onPress={() => void pick('library')}
+                style={styles.pickButton}
+                disabled={!isClaudeConfigured()}
+                testID="photo-library"
+              />
+            </View>
+          )}
+
+          {reply && (
+            <Card tone="panel" style={styles.replyCard}>
+              <AppText variant="label" color={colors.primary}>
+                {ns.name}
+              </AppText>
+              <AppText variant="body" style={styles.replyText}>
+                {reply}
+              </AppText>
+            </Card>
+          )}
+
+          {foods.length > 0 && (
+            <FoodConfirmList
+              foods={foods}
+              defaultMeal={asMealSlot(mealParam)}
+              onConfirm={handleConfirm}
+              confirmLabel="Log the plate"
+            />
+          )}
+
+          {notice && (
+            <Card style={styles.noticeCard}>
+              <AppText variant="caption" color={colors.warning}>
+                {notice}
+              </AppText>
+            </Card>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     paddingBottom: spacing.xxl,
     gap: spacing.md,

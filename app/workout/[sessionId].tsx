@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import {
   CurrentExercisePanel,
@@ -11,7 +11,7 @@ import {
   RestTimer,
   SetLogRow,
 } from '@/src/components/workout';
-import { AppText, Button, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import type { CharacterId } from '@/src/content/characters';
 import { makeEventId } from '@/src/services/events';
 import { useUserDataStore } from '@/src/store/user-data-store';
@@ -237,103 +237,105 @@ export default function WorkoutRunnerScreen() {
 
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <BackHeader />
-        <ProgressStrip current={ordinal + 1} total={exercises.length} />
-        <CurrentExercisePanel
-          exercise={currentExercise}
-          log={currentLog ?? {
-            plannedExerciseId: currentExercise.id,
-            name: currentExercise.name,
-            status: 'pending',
-            sets: [],
-          }}
-          ordinal={ordinal + 1}
-          total={exercises.length}
-        />
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <BackHeader />
+          <ProgressStrip current={ordinal + 1} total={exercises.length} />
+          <CurrentExercisePanel
+            exercise={currentExercise}
+            log={currentLog ?? {
+              plannedExerciseId: currentExercise.id,
+              name: currentExercise.name,
+              status: 'pending',
+              sets: [],
+            }}
+            ordinal={ordinal + 1}
+            total={exercises.length}
+          />
 
-        {/* Set rows: prescribed count, plus a trailing empty row so extra
-            sets can always be added. Logged rows can be un-ticked or
-            swiped away. Nothing here is mandatory. */}
-        {Array.from({ length: Math.max(targetSets, setsLogged + 1) }).map((_, i) => {
-          const setNumber = i + 1;
-          const logged = setNumber <= setsLogged;
-          const active = setNumber === setsLogged + 1;
-          const loggedValues = logged
-            ? currentLog?.sets.find((s) => s.setNumber === setNumber)
-            : undefined;
-          return (
-            <SetLogRow
-              key={`${currentExercise.id}-${setNumber}`}
-              setNumber={setNumber}
-              mode={inputMode}
-              logged={logged}
-              active={active}
-              logged_values={loggedValues}
-              onLog={handleLogSet}
-              onRemove={() => handleRemoveSet(setNumber)}
+          {/* Set rows: prescribed count, plus a trailing empty row so extra
+              sets can always be added. Logged rows can be un-ticked or
+              swiped away. Nothing here is mandatory. */}
+          {Array.from({ length: Math.max(targetSets, setsLogged + 1) }).map((_, i) => {
+            const setNumber = i + 1;
+            const logged = setNumber <= setsLogged;
+            const active = setNumber === setsLogged + 1;
+            const loggedValues = logged
+              ? currentLog?.sets.find((s) => s.setNumber === setNumber)
+              : undefined;
+            return (
+              <SetLogRow
+                key={`${currentExercise.id}-${setNumber}`}
+                setNumber={setNumber}
+                mode={inputMode}
+                logged={logged}
+                active={active}
+                logged_values={loggedValues}
+                onLog={handleLogSet}
+                onRemove={() => handleRemoveSet(setNumber)}
+              />
+            );
+          })}
+
+          {restSeconds !== null && (
+            <RestTimer
+              key={`rest-${currentExercise.id}-${setsLogged}`}
+              seconds={restSeconds}
+              onDone={() => setRestSeconds(null)}
             />
-          );
-        })}
+          )}
 
-        {restSeconds !== null && (
-          <RestTimer
-            key={`rest-${currentExercise.id}-${setsLogged}`}
-            seconds={restSeconds}
-            onDone={() => setRestSeconds(null)}
-          />
-        )}
-
-        <View style={styles.subActions}>
-          <Pressable onPress={toggleExerciseNote} style={styles.subAction} testID="toggle-note">
-            <Ionicons name="create-outline" size={18} color={colors.muted} />
-            <AppText variant="label" color={colors.muted}>
-              {exerciseNoteFor === currentExercise.id ? 'Save note' : 'Add note'}
+          <View style={styles.subActions}>
+            <Pressable onPress={toggleExerciseNote} style={styles.subAction} testID="toggle-note">
+              <Ionicons name="create-outline" size={18} color={colors.muted} />
+              <AppText variant="label" color={colors.muted}>
+                {exerciseNoteFor === currentExercise.id ? 'Save note' : 'Add note'}
+              </AppText>
+            </Pressable>
+            <AppText variant="caption" color={colors.muted} style={styles.hint}>
+              Swipe a logged set to delete it. Do what feels right today.
             </AppText>
-          </Pressable>
-          <AppText variant="caption" color={colors.muted} style={styles.hint}>
-            Swipe a logged set to delete it. Do what feels right today.
-          </AppText>
-        </View>
+          </View>
 
-        {exerciseNoteFor === currentExercise.id && (
-          <TextInput
-            value={exerciseNote}
-            onChangeText={setExerciseNote}
-            placeholder="How did that feel? Any pain, form thoughts, cues that worked?"
-            placeholderTextColor={colors.muted}
-            multiline
-            style={styles.noteInput}
-            testID="exercise-note"
-          />
-        )}
+          {exerciseNoteFor === currentExercise.id && (
+            <TextInput
+              value={exerciseNote}
+              onChangeText={setExerciseNote}
+              placeholder="How did that feel? Any pain, form thoughts, cues that worked?"
+              placeholderTextColor={colors.muted}
+              multiline
+              style={styles.noteInput}
+              testID="exercise-note"
+            />
+          )}
 
-        <Button
-          label={isLastExercise ? 'Finish session' : 'Next exercise'}
-          onPress={handleNextExercise}
-          style={styles.primaryAction}
-          testID="next-exercise"
-        />
-
-        <View style={styles.footerActions}>
           <Button
-            label="Skip this exercise"
-            variant="ghost"
-            onPress={handleSkip}
-            testID="skip-exercise"
+            label={isLastExercise ? 'Finish session' : 'Next exercise'}
+            onPress={handleNextExercise}
+            style={styles.primaryAction}
+            testID="next-exercise"
           />
-          <Button
-            label="End session early"
-            variant="ghost"
-            onPress={handleAbandon}
-            testID="abandon-session"
-          />
-        </View>
-      </ScrollView>
+
+          <View style={styles.footerActions}>
+            <Button
+              label="Skip this exercise"
+              variant="ghost"
+              onPress={handleSkip}
+              testID="skip-exercise"
+            />
+            <Button
+              label="End session early"
+              variant="ghost"
+              onPress={handleAbandon}
+              testID="abandon-session"
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -388,49 +390,54 @@ function SessionSummary({
 }) {
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <BackHeader />
-        <AppText variant="title">Session done</AppText>
-        <AppText variant="label" color={colors.muted} style={styles.summarySubtitle}>
-          {planFocus}
-        </AppText>
-
-        <Card style={styles.summaryCard} tone="panel">
-          <AppText variant="label">How did it feel?</AppText>
-          <View style={styles.feelingWrap}>
-            <FeelingPicker value={feeling} onChange={onFeelingChange} />
-          </View>
-
-          <AppText variant="label" style={styles.summaryLabel}>
-            Anything worth saying? (optional)
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <BackHeader />
+          <AppText variant="title">Session done</AppText>
+          <AppText variant="label" color={colors.muted} style={styles.summarySubtitle}>
+            {planFocus}
           </AppText>
-          <TextInput
-            value={sessionNote}
-            onChangeText={onSessionNoteChange}
-            placeholder="Energy, form, pain, whatever's on your mind."
-            placeholderTextColor={colors.muted}
-            multiline
-            style={styles.noteInput}
-            testID="session-note"
-          />
-        </Card>
 
-        <Button
-          label="Save session"
-          onPress={onSave}
-          style={styles.primaryAction}
-          testID="save-session"
-        />
-      </ScrollView>
+          <Card style={styles.summaryCard} tone="panel">
+            <AppText variant="label">How did it feel?</AppText>
+            <View style={styles.feelingWrap}>
+              <FeelingPicker value={feeling} onChange={onFeelingChange} />
+            </View>
+
+            <AppText variant="label" style={styles.summaryLabel}>
+              Anything worth saying? (optional)
+            </AppText>
+            <TextInput
+              value={sessionNote}
+              onChangeText={onSessionNoteChange}
+              placeholder="Energy, form, pain, whatever's on your mind."
+              placeholderTextColor={colors.muted}
+              multiline
+              style={styles.noteInput}
+              testID="session-note"
+            />
+          </Card>
+
+          <Button
+            label="Save session"
+            onPress={onSave}
+            style={styles.primaryAction}
+            testID="save-session"
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   scrollContent: {
     paddingBottom: spacing.xxl,
   },

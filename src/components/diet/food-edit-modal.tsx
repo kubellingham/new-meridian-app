@@ -104,8 +104,12 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
+    // Top-anchored, not centered: the input autofocuses, and a centered
+    // panel sits behind the Android keyboard (KAV inside a Modal is
+    // unreliable under edge-to-edge, so placement does the avoiding).
+    justifyContent: 'flex-start',
     padding: spacing.lg,
+    paddingTop: '22%',
   },
   panel: {
     backgroundColor: colors.surface,

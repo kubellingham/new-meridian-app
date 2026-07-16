@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 
 import { FoodConfirmList } from '@/src/components/diet';
-import { AppText, Card, Screen } from '@/src/components/ui';
+import { AppText, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { searchFoods } from '@/src/services/food-database';
 import {
   makeFoodLogId,
@@ -83,128 +84,133 @@ export default function FoodSearchScreen() {
 
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.backButton}
-            testID="search-back"
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <AppText variant="title">Search foods</AppText>
-        </View>
+      <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.backButton}
+              testID="search-back"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+            <AppText variant="title">Search foods</AppText>
+          </View>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="e.g. peanut butter"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-            returnKeyType="search"
-            onSubmitEditing={handleSearch}
-            autoCorrect={false}
-            testID="search-input"
-          />
-          <Pressable
-            onPress={handleSearch}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-            style={styles.searchButton}
-            testID="search-go"
-          >
-            {searching ? (
-              <ActivityIndicator size="small" color={colors.base} />
-            ) : (
-              <Ionicons name="search" size={20} color={colors.base} />
-            )}
-          </Pressable>
-        </View>
+          <View style={styles.searchRow}>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="e.g. peanut butter"
+              placeholderTextColor={colors.muted}
+              style={styles.input}
+              returnKeyType="search"
+              onSubmitEditing={handleSearch}
+              autoCorrect={false}
+              testID="search-input"
+            />
+            <Pressable
+              onPress={handleSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+              style={styles.searchButton}
+              testID="search-go"
+            >
+              {searching ? (
+                <ActivityIndicator size="small" color={colors.base} />
+              ) : (
+                <Ionicons name="search" size={20} color={colors.base} />
+              )}
+            </Pressable>
+          </View>
 
-        {error && (
-          <Card style={styles.errorCard}>
-            <AppText variant="caption" color={colors.warning}>
-              {error} You can still add the food manually.
-            </AppText>
-          </Card>
-        )}
-
-        {picked ? (
-          <FoodConfirmList
-            foods={[{ item: picked, servings: pickedServings }]}
-            defaultMeal={asMealSlot(mealParam)}
-            onConfirm={handleConfirm}
-          />
-        ) : results !== null ? (
-          results.length === 0 ? (
-            <AppText variant="caption" color={colors.muted}>
-              Nothing found for that. Try a simpler term, or add it manually.
-            </AppText>
-          ) : (
-            results.map((item, i) => (
-              <Pressable
-                key={`${item.barcode ?? item.name}-${i}`}
-                onPress={() => {
-                  setPickedSource('database');
-                  setPickedServings(1);
-                  setPicked(item);
-                }}
-                accessibilityRole="button"
-                testID={`search-result-${i}`}
-              >
-                <Card style={styles.resultCard}>
-                  <AppText variant="body">{item.name}</AppText>
-                  <AppText variant="caption" color={colors.muted}>
-                    {[item.brand, `${item.caloriesPerServing} kcal / ${item.servingDescription ?? 'serving'}`]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </AppText>
-                </Card>
-              </Pressable>
-            ))
-          )
-        ) : (
-          recents.length > 0 && (
-            <>
-              <AppText variant="label" color={colors.muted}>
-                Recent
+          {error && (
+            <Card style={styles.errorCard}>
+              <AppText variant="caption" color={colors.warning}>
+                {error} You can still add the food manually.
               </AppText>
-              {recents.map((recent, i) => (
+            </Card>
+          )}
+
+          {picked ? (
+            <FoodConfirmList
+              foods={[{ item: picked, servings: pickedServings }]}
+              defaultMeal={asMealSlot(mealParam)}
+              onConfirm={handleConfirm}
+            />
+          ) : results !== null ? (
+            results.length === 0 ? (
+              <AppText variant="caption" color={colors.muted}>
+                Nothing found for that. Try a simpler term, or add it manually.
+              </AppText>
+            ) : (
+              results.map((item, i) => (
                 <Pressable
-                  key={`recent-${recent.item.name}-${i}`}
+                  key={`${item.barcode ?? item.name}-${i}`}
                   onPress={() => {
-                    setPickedSource('manual');
-                    setPickedServings(recent.servings);
-                    setPicked(recent.item);
+                    setPickedSource('database');
+                    setPickedServings(1);
+                    setPicked(item);
                   }}
                   accessibilityRole="button"
-                  testID={`recent-${i}`}
+                  testID={`search-result-${i}`}
                 >
                   <Card style={styles.resultCard}>
-                    <AppText variant="body">{recent.item.name}</AppText>
+                    <AppText variant="body">{item.name}</AppText>
                     <AppText variant="caption" color={colors.muted}>
-                      {Math.round(recent.item.caloriesPerServing * recent.servings)} kcal
-                      last time
+                      {[item.brand, `${item.caloriesPerServing} kcal / ${item.servingDescription ?? 'serving'}`]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </AppText>
                   </Card>
                 </Pressable>
-              ))}
-            </>
-          )
-        )}
-      </ScrollView>
+              ))
+            )
+          ) : (
+            recents.length > 0 && (
+              <>
+                <AppText variant="label" color={colors.muted}>
+                  Recent
+                </AppText>
+                {recents.map((recent, i) => (
+                  <Pressable
+                    key={`recent-${recent.item.name}-${i}`}
+                    onPress={() => {
+                      setPickedSource('manual');
+                      setPickedServings(recent.servings);
+                      setPicked(recent.item);
+                    }}
+                    accessibilityRole="button"
+                    testID={`recent-${i}`}
+                  >
+                    <Card style={styles.resultCard}>
+                      <AppText variant="body">{recent.item.name}</AppText>
+                      <AppText variant="caption" color={colors.muted}>
+                        {Math.round(recent.item.caloriesPerServing * recent.servings)} kcal
+                        last time
+                      </AppText>
+                    </Card>
+                  </Pressable>
+                ))}
+              </>
+            )
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     paddingBottom: spacing.xxl,
     gap: spacing.sm,
