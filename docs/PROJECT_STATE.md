@@ -46,18 +46,18 @@ This document is the full, authoritative record of the Meridian build — writte
 - **Nutrition math**: Mifflin–St Jeor BMR → activity multiplier → TDEE → goal adjustment (−20% / +10% / maintenance) with per-goal protein (1.8 / 2.0 / 1.6 g/kg), fats 27% of calories, 1300 kcal floor. `computeEnergy` exports BMR/TDEE/BMI for the Insights tab.
 - **Food data**: Open Food Facts (no key) for barcode + search, with serving-aware mapping (label serving preferred over per-100g) and gram-based portion entry.
 - **CI/CD**: GitHub Actions — manual dev-client build, manual **preview (tester APK) build**, and on-push OTA updates to **both** channels (`development` + `preview`). EAS runtimeVersion = appVersion policy, so JS ships OTA; native changes need a rebuild + version bump.
-- **Testing discipline**: 193 Jest tests (services, stores, content integrity, proxy handler), plus a library of Playwright drive scripts that run the real web build against seeded localStorage — including a stub-proxy drive that renders live replies and quick-reply chips end-to-end.
+- **Testing discipline**: 226 Jest tests (services, stores, content integrity, proxy handler), plus a library of Playwright drive scripts that run the real web build against seeded localStorage — including a stub-proxy drive that renders live replies and quick-reply chips end-to-end.
 
 ## 5. Complete feature inventory (all shipped and verified)
 
 **Onboarding** (`app/onboarding.tsx` + `src/content/onboarding/flows.ts`)
 - The full weight-loss script (Meridian_Weight_Loss_Onboarding_Script_v1) as a text-forward flow: Kael collects name/birthday/gender/goal/activity, Sera collects why-now/feeling/coaching-style, trainer + NS roster meets with scripted intros and commits, team wrap, honest local-only close.
-- **All three goals live**: goal cards branch the flow (per-goal Kael reactions, numbers-beat variants, trainer framing, roster filtering). The chosen goal drives targets and every character's context.
+- **Weight-loss-first (the pivot)**: every new user starts on weight loss — the goal beat keeps all three cards but only "Lose weight" is selectable (the others render disabled with an honest "paused" note). The muscle/general branches are **dormant, not deleted**: per-goal beats, rosters, targets, and trainer content all remain and keep working for existing users on those goals. Onboarding progress persists beat-by-beat (`meridian-onboarding` store), so backgrounding/process death resumes mid-flow.
 - Added beyond the script: a numbers beat (height/current/goal weight — the script never collected them), per-goal plausibility nudges, optional goal weight for general fitness, a "Something else" free-text feeling with a Sera ack, progress bar + back navigation, an AI-fallibility/medical disclaimer on the finish screen.
 - Emotional answers persist into `sessionFeedback.emotionalCheckIns` so Sera genuinely carries the "why" forward. Targets compute at finish; the user lands on a real Home.
 
 **Home** (`app/(tabs)/index.tsx`)
-- Two-column widget grid: calories (real intake vs target, full-width), weigh-in vs goal, streak (real: any day with a food log or completed workout; today/yesterday grace; honest 30+ cap), today's-training live state, water, sleep&steps honest placeholder, NS note (last logged meal as fact, or a per-NS in-voice quiet-day nudge after midday), consultants row.
+- Two-column widget grid: calories (real intake vs target, full-width), weigh-in with **weekly trend** ("−0.6 kg this week · 4.2 to go" once the log supports a rate), streak (real: any day with a food log or completed workout; today/yesterday grace; honest 30+ cap), today's-training live state (carrying the trainer's philosophy line), water, sleep&steps honest placeholder, NS note (last logged meal as fact, or a per-NS in-voice quiet-day nudge after midday), consultants row.
 - **Kael's morning brief**: generated once per local day from full team context, delivered as a tap-to-open note that becomes his chat opener; marked delivered once seen.
 
 **Training** (`app/(tabs)/training.tsx`, `app/trainer.tsx`, `app/workout/[sessionId].tsx`, `app/history.tsx`)
@@ -66,11 +66,12 @@ This document is the full, authoritative record of the Meridian build — writte
 - Workout runner: set-by-set logging with natural inputs, un-log, swipe-delete, non-mandatory sets, rest timer, session feeling + note. History browsing screen. A per-exercise progression digest feeds the next generation. Plan-created and workout-completed events flow to Kael.
 
 **Diet** (`app/(tabs)/diet.tsx`, `app/diet-chat.tsx`, `app/food/*`)
-- Dashboard: calorie summary vs target, macro bars, water tracking, weight quick-log (recomputes targets), four meal sections, edit/delete any entry.
+- Dashboard: calorie summary vs target, macro bars, water tracking, weight quick-log (appends to the weigh-in history and recomputes targets), four meal sections, edit/delete any entry.
 - Five logging paths: NS chat (logs mid-conversation via tool), photo (NS looks at the plate), barcode (auto-capture feedback, not-found → photograph-it fork, label-true servings), database search (with recents strip carrying last-time portions), manual.
 
 **Insights** (`app/(tabs)/insights.tsx`)
-- "Your numbers": BMR, TDEE (multiplier explained), goal-adjusted daily target (adjustment explained per goal), BMI (framed as the blunt tool it is), macro targets with per-goal protein logic. All from the profile; empty state points to a weigh-in.
+- **Weight leads**: current vs starting, 7/30-day change, average weekly rate (least-squares over trailing 28 days; refuses to exist under 2 entries / 3 days span, so the migration seed can't fabricate a trend), an honest at-this-rate projection (declines flat / wrong-direction / >2-years cases), and the trainer's own words on pace with a numeric band comparison only where the coach prescribes one (Cassidy, Noa).
+- "Your numbers" below: BMR, TDEE (multiplier explained), goal-adjusted daily target (adjustment explained per goal), BMI (framed as the blunt tool it is), macro targets with per-goal protein logic.
 
 **Profile** (`app/(tabs)/profile.tsx`)
 - Identity + real goal + team roster, service status, About Meridian card (app version + AI/medical disclaimer + data-stays-on-phone), **Send feedback** → WhatsApp prefilled with version/platform, dev reset.
@@ -82,14 +83,14 @@ This document is the full, authoritative record of the Meridian build — writte
 - Facts block (everything known, voice-safe), today's intake/plan/recent-training lines, water, cross-thread conversation digest with visibility lanes (consultants see all; specialists see consultants only), pending-events block with seen-tracking after each reply.
 
 **Infrastructure**
-- Token-gated Claude proxy + client cutover; store versioning; tester-copy scrub (no env-var names anywhere user-visible); preview build profile + workflows; dual-channel OTA; README launch checklist; bundle audit (zero vendor keys in any build).
+- Token-gated Claude proxy + client cutover; store versioning (meridian-user v2: trainer retirement; meridian-user-data v2: weightLog seeded from last known weight; onboarding progress store v1); tester-copy scrub (no env-var names anywhere user-visible); preview build profile + workflows; dual-channel OTA; README launch checklist; bundle audit (zero vendor keys in any build).
 
-## 6. The cast (19 characters, `src/content/characters/`)
+## 6. The cast (23 characters, `src/content/characters/`)
 
 - **Consultants**: Kael (operations; clipped, precise, almost no humor) · Sera (behavioral; warm, perceptive, asks the unasked question).
-- **Weight-loss trainers**: Cassidy (Chicago; lost 40 kg herself; honest, no quick fixes) · Tobias (Berlin; burned-out endurance athlete; behavior-first strategist) · Marco (São Paulo; street football roots; joy → consistency).
-- **Muscle trainers** (new): Ananya (Mumbai; physique science, myth-retiring warmth) · Dmitri (Prague; barbell purist of few words) · Kofi (Accra; sprinter turned S&C; celebratory and demanding).
-- **General-fitness trainers** (new): Amara (Nairobi; ex-physiotherapist; train for the life in ten years) · Ingrid (Oslo; friluftsliv endurance; "mostly outside, mostly easy, never zero") · Sam (Vancouver; workouts that fit your actual Tuesday).
+- **Weight-loss trainers (Roster v1, philosophy-first — the frontline)**: Cassidy Wren (Chicago; slow & sustainable; lost it twice) · Renata Alves (Coimbra; strength minimalist) · Marcus Adeyemi-Boateng (Manchester; conditioning, no mirrors) · Priya Raghunathan (Birmingham; adherence-first, openly under-prescribes) · Noa Bar-Lev (Tel Aviv; 12 weeks then maintenance). **Retired**: Tobias, Marco — registered forever (history resolves), on no roster; a store migration routes their users to re-pick.
+- **Muscle trainers** (dormant goal — live for existing users): Ananya (Mumbai; physique science, myth-retiring warmth) · Dmitri (Prague; barbell purist of few words) · Kofi (Accra; sprinter turned S&C; celebratory and demanding).
+- **General-fitness trainers** (dormant goal — live for existing users): Amara (Nairobi; ex-physiotherapist; train for the life in ten years) · Ingrid (Oslo; friluftsliv endurance; "mostly outside, mostly easy, never zero") · Sam (Vancouver; workouts that fit your actual Tuesday).
 - **Nutrition specialists**: Nneka (West African) · Kavya (South Asian) · Haruki (Japanese) · Sofía (Mexican) · Yasmin (Lebanese) · Elena (Greek) · Jordan (American) · Mei Lin (Chinese).
 - Every character: full voicePrompt with example lines, humor profile, cultural seasoning notes, handoff rules, never-dos — plus onboarding intro/commit lines and (trainers) intake lead-ins and chat greetings.
 
