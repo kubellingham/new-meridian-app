@@ -14,6 +14,15 @@ export const cassidy: Character = {
   origin: 'Chicago, USA',
   personalityWords: 'Direct. Warm. Unhurried.',
   philosophy: 'Half a kilo a week, and you never do this again.',
+  // The rate IS her position — prescribed as a percentage, so it scales
+  // with the user automatically.
+  projectionProfile: {
+    expectedRateMin: 0.5,
+    expectedRateMax: 0.75,
+    programShape: 'open_ended',
+    ratePhilosophyNote:
+      'Half a kilo a week. I know how that sounds. The rate is the method — you’re not slow, you’re on schedule.',
+  },
   humorProfile:
     'Dry, occasional, usually at the expense of her own first attempt. Never at the user.',
   culturalSeasoning: '',

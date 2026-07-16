@@ -48,6 +48,27 @@ export type CharacterId =
   | 'jordan'
   | 'mei-lin';
 
+/**
+ * How a weight-loss trainer's approach projects over time — groundwork
+ * for the Insights "trend your coach's approach implies vs. where you
+ * are" chart (a later session). The note describes the SHAPE of the
+ * approach in the trainer's voice, for Kael to reference without
+ * predicting outcomes. Deliberately never used for a trainer-comparison
+ * chart in onboarding: with no outcome data, a comparison would funnel
+ * everyone toward the fastest line regardless of fit.
+ */
+export interface ProjectionProfile {
+  /** Expected loss, % of bodyweight per week (positive numbers). */
+  expectedRateMin: number;
+  expectedRateMax: number;
+  /** Open-ended coaching vs. a fixed block with a planned end. */
+  programShape: 'open_ended' | 'time_boxed';
+  /** Block length — only for time_boxed programs. */
+  blockLengthWeeks?: number;
+  /** Short, in-voice line about the rate — honest, not stats language. */
+  ratePhilosophyNote: string;
+}
+
 export interface Character {
   id: CharacterId;
   /** Callable name — what teammates and chat headers use, e.g. "Renata". */
@@ -92,4 +113,9 @@ export interface Character {
    * relationship can start with a retired character.
    */
   retired?: boolean;
+  /**
+   * Weight-loss trainers only: how their approach projects over time.
+   * Unset for consultants, NS, and dormant/retired trainers.
+   */
+  projectionProfile?: ProjectionProfile;
 }

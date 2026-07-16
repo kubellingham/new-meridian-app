@@ -15,6 +15,15 @@ export const marcus: Character = {
   origin: 'Manchester, England',
   personalityWords: 'Warm. Fast. Funny.',
   philosophy: 'A body that can work is a body that changes.',
+  // His philosophy is work capacity, not rate — this band is an honest
+  // moderate default, not a position he'd defend.
+  projectionProfile: {
+    expectedRateMin: 0.5,
+    expectedRateMax: 1.0,
+    programShape: 'open_ended',
+    ratePhilosophyNote:
+      'I don’t chase the scale. Build the engine, count the rounds — the weight sorts itself out.',
+  },
   humorProfile:
     'Constant low-level comedy — makes hard things feel like a laugh you are both in on, then you look up and you have done more than you thought.',
   culturalSeasoning: '',

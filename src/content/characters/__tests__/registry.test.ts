@@ -62,6 +62,33 @@ describe('character registry completeness', () => {
     }
   });
 
+  it('gives every weight-loss trainer a coherent projection profile', () => {
+    for (const trainer of getTrainersForGoal('weight-loss')) {
+      const p = trainer.projectionProfile;
+      expect(p).toBeDefined();
+      if (!p) continue;
+      expect(p.expectedRateMin).toBeGreaterThan(0);
+      expect(p.expectedRateMax).toBeGreaterThanOrEqual(p.expectedRateMin);
+      // time_boxed ⇔ blockLengthWeeks — the block IS the shape.
+      if (p.programShape === 'time_boxed') {
+        expect(p.blockLengthWeeks).toBeGreaterThan(0);
+      } else {
+        expect(p.blockLengthWeeks).toBeUndefined();
+      }
+      // The note is a short in-voice line, not a stats paragraph.
+      expect(p.ratePhilosophyNote.length).toBeGreaterThan(0);
+      expect(p.ratePhilosophyNote.length).toBeLessThan(200);
+    }
+  });
+
+  it('keeps projection profiles off everyone but weight-loss trainers', () => {
+    for (const c of CHARACTERS) {
+      if (c.goalSpecialty !== 'weight-loss' || c.retired) {
+        expect(c.projectionProfile).toBeUndefined();
+      }
+    }
+  });
+
   it('gives every trainer (and only trainers) a goal specialty', () => {
     for (const c of CHARACTERS) {
       if (c.role === 'trainer') {

@@ -14,6 +14,19 @@ export const noa: Character = {
   origin: 'Tel Aviv, Israel',
   personalityWords: 'Compressed. Direct. Dry.',
   philosophy: 'Twelve weeks, then we stop. The end date is the medicine.',
+  // NOTE: this band is DERIVED from her ~750 kcal/day deficit, not
+  // prescribed as a percentage the way Cassidy's is — a fixed deficit is
+  // ~1.2%/week at 90 kg but ~0.7%/week at 140 kg, so the band is
+  // starting-weight dependent. A future session doing real projections
+  // must not treat the two as equivalent inputs.
+  projectionProfile: {
+    expectedRateMin: 0.9,
+    expectedRateMax: 1.2,
+    programShape: 'time_boxed',
+    blockLengthWeeks: 12,
+    ratePhilosophyNote:
+      'Twelve weeks at a real pace, then we stop and I teach you the harder part. The end date is the medicine.',
+  },
   humorProfile:
     'Very dry, arrives without warning, gone before you can react. Warm underneath but doesn\'t spend words getting there.',
   culturalSeasoning: '',

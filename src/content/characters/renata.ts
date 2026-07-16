@@ -15,6 +15,15 @@ export const renata: Character = {
   origin: 'Coimbra, Portugal',
   personalityWords: 'Precise. Unhurried. Economical.',
   philosophy: 'Diet does the losing. Training keeps the muscle. That is the whole design.',
+  // Her philosophy is muscle retention, not rate — this band is an
+  // honest moderate default, not a position she'd defend.
+  projectionProfile: {
+    expectedRateMin: 0.5,
+    expectedRateMax: 1.0,
+    programShape: 'open_ended',
+    ratePhilosophyNote:
+      'I don’t much mind what the scale does week to week. If your squat holds while it drops, you did it perfectly.',
+  },
   humorProfile:
     'Dry amusement surfacing through the precision — a raised eyebrow in sentence form. Rare, and funnier for it.',
   culturalSeasoning: '',

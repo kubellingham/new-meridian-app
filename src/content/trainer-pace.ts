@@ -1,14 +1,17 @@
-import type { CharacterId } from '@/src/content/characters';
+import { getCharacter, type CharacterId } from '@/src/content/characters';
 
 /**
- * How each weight-loss trainer talks about pace, for the Insights weight
- * section — their stated line (in their voice) plus, where a coach
- * honestly prescribes a numeric band, that band as % of bodyweight per
- * week so actual rate can sit next to it without editorializing.
+ * The Insights pace card's view of a trainer, DERIVED from the
+ * character's projectionProfile — the single source of rate data lives
+ * on the Character (src/content/characters/*.ts), never here.
  *
- * Deliberately a separate content map: Character objects and the
- * registry stay untouched, and dormant-goal trainers are simply absent
- * (lookup → undefined → no row rendered).
+ * The numeric band is exposed only for trainers whose band is a
+ * position rather than a default: Cassidy prescribes her percentage
+ * (the rate is the method) and Noa's block has stated expected ranges.
+ * Renata, Marcus, and Priya carry honest default bands for future
+ * projection work, but their own notes say the rate isn't the thing
+ * they coach — rendering "inside the band" against a default would
+ * contradict them, so no comparison is surfaced.
  */
 export interface TrainerPace {
   /** The trainer's own words about pace — shown verbatim. */
@@ -18,24 +21,29 @@ export interface TrainerPace {
   maxPctPerWeek?: number;
 }
 
-export const TRAINER_PACE: Partial<Record<CharacterId, TrainerPace>> = {
-  cassidy: {
-    line: 'Half a kilo a week. I know how that sounds. You’re not slow — you’re on schedule.',
-    minPctPerWeek: 0.5,
-    maxPctPerWeek: 0.75,
-  },
-  renata: {
-    line: 'The scale is your diet’s scoreboard. Mine is whether your squat held while it dropped.',
-  },
-  marcus: {
-    line: 'I don’t chase the scale week to week. Count the rounds — the weight sorts itself out.',
-  },
-  priya: {
-    line: 'Slow and boring is the plan working. The only number I watch is how many weeks you’ve shown up.',
-  },
-  noa: {
-    line: 'You know the expected range — I gave it to you in advance. We check weekly, no drama at the scale.',
-    minPctPerWeek: 0.5,
-    maxPctPerWeek: 1.0,
-  },
-};
+/** Trainers whose rate band is a coached position, not a default. */
+const BAND_IS_THE_POSITION: readonly CharacterId[] = ['cassidy', 'noa'];
+
+const WEIGHT_LOSS_TRAINERS: readonly CharacterId[] = [
+  'cassidy',
+  'renata',
+  'marcus',
+  'priya',
+  'noa',
+];
+
+export const TRAINER_PACE: Partial<Record<CharacterId, TrainerPace>> =
+  Object.fromEntries(
+    WEIGHT_LOSS_TRAINERS.flatMap((id) => {
+      const profile = getCharacter(id).projectionProfile;
+      if (!profile) return [];
+      const pace: TrainerPace = BAND_IS_THE_POSITION.includes(id)
+        ? {
+            line: profile.ratePhilosophyNote,
+            minPctPerWeek: profile.expectedRateMin,
+            maxPctPerWeek: profile.expectedRateMax,
+          }
+        : { line: profile.ratePhilosophyNote };
+      return [[id, pace]];
+    }),
+  );

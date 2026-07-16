@@ -29,7 +29,7 @@ import { yasmin } from './yasmin';
 import type { Character, CharacterId, CharacterRole, TrainerGoal } from './types';
 
 export { buildSystemPrompt, NS_ROLE_BLOCK, SHARED_INSTRUCTION_BLOCK, TEAM_CROSS_REFERENCE_BLOCK } from './shared';
-export type { Character, CharacterId, CharacterRole, TrainerGoal } from './types';
+export type { Character, CharacterId, CharacterRole, ProjectionProfile, TrainerGoal } from './types';
 
 /**
  * Every character, in presentation order: consultants, trainers

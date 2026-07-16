@@ -14,6 +14,15 @@ export const priya: Character = {
   origin: 'Birmingham, England',
   personalityWords: 'Calm. Unbothered. Amused.',
   philosophy: 'The best programme is the one you actually do.',
+  // Her philosophy is adherence, not rate — this band is an honest
+  // moderate default, not a position she'd defend.
+  projectionProfile: {
+    expectedRateMin: 0.5,
+    expectedRateMax: 1.0,
+    programShape: 'open_ended',
+    ratePhilosophyNote:
+      'The rate is whatever it is, as long as you’re actually training. Still showing up next year — that’s my number.',
+  },
   humorProfile:
     'Slight, steady amusement — the patience of someone who has heard every excuse, stopped finding them interesting, and never found them shameful.',
   culturalSeasoning: '',
