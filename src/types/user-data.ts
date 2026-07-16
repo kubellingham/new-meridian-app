@@ -29,9 +29,15 @@ export interface UserProfile {
   startingWeight?: number; // kg
   goalWeight?: number; // kg
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active';
-  fitnessExperience?: 'none' | 'some' | 'experienced';
+  /** 'returning' = trained before, coming back after a real break. */
+  fitnessExperience?: 'none' | 'returning' | 'some' | 'experienced';
   equipmentAccess?: EquipmentAccess;
   trainingDaysPerWeek?: number;
+  /** Where training actually happens — drives equipment questions. */
+  trainingPlace?: 'home' | 'gym' | 'outdoors' | 'mix';
+  /** Session length the user says they can sustain, in minutes. */
+  sessionLengthMinutes?: number;
+  preferredTrainingTime?: 'morning' | 'midday' | 'evening' | 'varies';
   trainingHistory?: string; // free text from trainer intake
   dietaryPattern?: string; // e.g. "West African, jollof-and-egusi baseline"
   allergies?: string[];
@@ -56,6 +62,12 @@ export interface ProgrammeState {
   currentSession?: WorkoutSession;
   /** Completed and abandoned sessions, most recent first. Capped at 10. */
   recentSessions?: WorkoutSession[];
+  /**
+   * Which trainer has run their first-time intake. Relationship-scoped:
+   * a newly picked trainer runs THEIR intake even when the facts are
+   * already on file — the questions are theirs, in their voice.
+   */
+  intakeCompletedBy?: CharacterId;
 }
 
 /** §2.3 Owned by the NS, visible to all specialists. */
@@ -262,7 +274,12 @@ export type EventKind =
   | 'morning-brief'
   | 'workout-plan-created'
   | 'workout-completed'
-  | 'workout-abandoned';
+  | 'workout-abandoned'
+  // Trainer intake: completion summary, and any challenge the trainer
+  // raised (Noa's flag-and-proceed, Priya's four-days pushback) with the
+  // user's decision — so Kael knows the story if a swap comes up.
+  | 'intake-completed'
+  | 'intake-concern';
 
 /**
  * A single event: one specialist noted a domain-changing decision, and
