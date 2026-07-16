@@ -16,6 +16,7 @@ import {
   undeliveredBrief,
 } from '@/src/services/morning-brief';
 import { currentStreak, formatStreak } from '@/src/services/streak';
+import { computeWeightTrend } from '@/src/services/weight-trend';
 import { deriveWorkoutState, type WorkoutCardState } from '@/src/services/workout-state';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
@@ -35,12 +36,15 @@ import { colors, spacing } from '@/src/theme/theme';
 export default function HomeScreen() {
   const name = useUserStore((s) => s.name);
   const nsId = useUserStore((s) => s.nsId);
+  const trainerId = useUserStore((s) => s.trainerId);
   const retiredTrainerId = useUserStore((s) => s.retiredTrainerId);
   const ns = nsId ? getCharacter(nsId) : null;
+  const trainer = trainerId ? getCharacter(trainerId) : null;
   const retiredTrainer = retiredTrainerId ? getCharacter(retiredTrainerId) : null;
 
   const events = useUserDataStore((s) => s.events);
   const foodLog = useUserDataStore((s) => s.foodLog);
+  const weightLog = useUserDataStore((s) => s.weightLog);
   const nutritionState = useUserDataStore((s) => s.nutritionState);
   const programmeState = useUserDataStore((s) => s.programmeState);
   const currentWeight = useUserDataStore((s) => s.dailySignals.currentWeight);
@@ -82,6 +86,30 @@ export default function HomeScreen() {
       ? Math.round((currentWeight - goalWeight) * 10) / 10
       : null;
   const waterL = Math.round(((waterMl ?? 0) / 1000) * 10) / 10;
+
+  // Weigh-in caption, weight-loss-first: the weekly trend once the log
+  // supports one, the baseline note on a first entry, to-goal otherwise.
+  const trend = computeWeightTrend(weightLog, today);
+  const toGoalShort =
+    toGoal === null
+      ? null
+      : toGoal > 0
+        ? `${toGoal} kg to go`
+        : toGoal < 0
+          ? `${Math.abs(toGoal)} kg past goal`
+          : 'at your goal';
+  const weighInCaption =
+    trend.delta7 !== undefined
+      ? `${trend.delta7 > 0 ? '+' : ''}${trend.delta7} kg this week${toGoalShort ? ` · ${toGoalShort}` : ''}`
+      : trend.entryCount === 1 && !weightLog?.[0]?.seeded
+        ? 'First weigh-in sets the baseline.'
+        : toGoal === null
+          ? 'No goal weight set.'
+          : toGoal > 0
+            ? `${toGoal} kg to go.`
+            : toGoal < 0
+              ? `${Math.abs(toGoal)} kg past goal.`
+              : 'At your goal.';
 
   // The NS note, computed locally (no API on Home): a quiet-day nudge in
   // their voice after midday, the last logged food as plain fact, or
@@ -156,14 +184,8 @@ export default function HomeScreen() {
                   <AppText variant="subtitle" style={styles.widgetValue} testID="home-weight-value">
                     {currentWeight} kg
                   </AppText>
-                  <AppText variant="caption">
-                    {toGoal === null
-                      ? 'No goal weight set.'
-                      : toGoal > 0
-                        ? `${toGoal} kg to go.`
-                        : toGoal < 0
-                          ? `${Math.abs(toGoal)} kg past goal.`
-                          : 'At your goal.'}
+                  <AppText variant="caption" testID="home-weight-caption">
+                    {weighInCaption}
                   </AppText>
                 </>
               ) : (
@@ -218,6 +240,13 @@ export default function HomeScreen() {
                   ? 'Trainer roster changed — tap to meet them.'
                   : trainingCaption(workoutState)}
               </AppText>
+              {/* The trainer's philosophy, quietly present — the coaches
+                  carry Meridian, and their method should be felt on Home. */}
+              {trainer && !retiredTrainer && workoutState.kind !== 'in-progress' && (
+                <AppText variant="caption" color={colors.muted} testID="home-trainer-philosophy">
+                  “{trainer.philosophy}” — {trainer.name}
+                </AppText>
+              )}
             </Card>
           </Pressable>
 
