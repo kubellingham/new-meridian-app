@@ -258,3 +258,76 @@ describe('food log actions', () => {
     expect(useUserDataStore.getState().foodLog).toEqual([]);
   });
 });
+
+describe('weight log', () => {
+  beforeEach(() => {
+    useUserDataStore.getState().reset();
+  });
+
+  it('logWeight appends an entry and syncs currentWeight', () => {
+    useUserDataStore.getState().logWeight(91.44);
+    const s = useUserDataStore.getState();
+    expect(s.weightLog).toHaveLength(1);
+    expect(s.weightLog[0].kg).toBe(91.4); // rounded to 0.1
+    expect(s.weightLog[0].forDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(s.dailySignals.currentWeight).toBe(91.4);
+  });
+
+  it('a repeat same-day log replaces that day, not appends', () => {
+    useUserDataStore.getState().logWeight(92);
+    useUserDataStore.getState().logWeight(91.5);
+    const s = useUserDataStore.getState();
+    expect(s.weightLog).toHaveLength(1);
+    expect(s.weightLog[0].kg).toBe(91.5);
+    expect(s.dailySignals.currentWeight).toBe(91.5);
+  });
+
+  it('caps the log at 400 entries, dropping oldest', () => {
+    const seeded = Array.from({ length: 400 }, (_, i) => ({
+      at: i,
+      forDate: `2025-01-${String((i % 28) + 1).padStart(2, '0')}-${i}`, // unique fake dates
+      kg: 100,
+    }));
+    useUserDataStore.setState({ weightLog: seeded });
+    useUserDataStore.getState().logWeight(90);
+    const s = useUserDataStore.getState();
+    expect(s.weightLog).toHaveLength(400);
+    expect(s.weightLog[s.weightLog.length - 1].kg).toBe(90);
+    expect(s.weightLog[0].at).toBe(1); // oldest (at: 0) dropped
+  });
+
+  it('reset clears the weight log', () => {
+    useUserDataStore.getState().logWeight(90);
+    useUserDataStore.getState().reset();
+    expect(useUserDataStore.getState().weightLog).toEqual([]);
+  });
+});
+
+describe('user-data version 2 migration (weightLog)', () => {
+  const migrate = useUserDataStore.persist.getOptions().migrate!;
+
+  it('seeds weightLog from a v1 currentWeight, flagged as seed', () => {
+    const v1 = {
+      userProfile: { primaryGoal: 'weight-loss' },
+      dailySignals: { currentWeight: 96.5 },
+      foodLog: [{ id: 'keep-me' }],
+    };
+    const migrated = migrate(v1, 1) as Record<string, unknown>;
+    expect(migrated.weightLog).toEqual([
+      expect.objectContaining({ kg: 96.5, seeded: true }),
+    ]);
+    // Everything else carries forward untouched.
+    expect(migrated.foodLog).toEqual([{ id: 'keep-me' }]);
+    expect(migrated.userProfile).toEqual({ primaryGoal: 'weight-loss' });
+  });
+
+  it('gives a v1 state without a weight an empty log', () => {
+    const migrated = migrate({ dailySignals: {} }, 1) as Record<string, unknown>;
+    expect(migrated.weightLog).toEqual([]);
+  });
+
+  it('passes v2 state through unchanged (idempotent)', () => {
+    const v2 = { weightLog: [{ at: 1, forDate: '2026-07-01', kg: 90 }], dailySignals: {} };
+    expect(migrate(v2, 2)).toBe(v2);
+  });
+});

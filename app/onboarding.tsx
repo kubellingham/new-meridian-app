@@ -90,7 +90,7 @@ function OnboardingFlow() {
   const completeSetup = useUserStore((s) => s.completeSetup);
   const updateUserProfile = useUserDataStore((s) => s.updateUserProfile);
   const updateNutritionState = useUserDataStore((s) => s.updateNutritionState);
-  const updateDailySignals = useUserDataStore((s) => s.updateDailySignals);
+  const logWeight = useUserDataStore((s) => s.logWeight);
   const updateSessionFeedback = useUserDataStore((s) => s.updateSessionFeedback);
   const emotionalCheckIns = useUserDataStore((s) => s.sessionFeedback.emotionalCheckIns);
 
@@ -189,7 +189,8 @@ function OnboardingFlow() {
     };
 
     updateUserProfile(profile);
-    if (startingWeight) updateDailySignals({ currentWeight: startingWeight });
+    // Starting weight is weigh-in #1 — the trend on Home/Insights builds on it.
+    if (startingWeight) logWeight(startingWeight);
 
     const now = Date.now();
     const checkIns = [...(emotionalCheckIns ?? [])];

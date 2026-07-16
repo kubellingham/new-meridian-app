@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { CharacterId } from '@/src/content/characters';
+import { todayLocalISODate } from '@/src/services/food-log';
 import {
   EMPTY_SHARED_USER_DATA,
   type DailySignals,
@@ -16,6 +17,7 @@ import {
   type SharedUserData,
   type TeamEvent,
   type UserProfile,
+  type WeightEntry,
   type WorkoutPlan,
   type WorkoutSession,
 } from '@/src/types/user-data';
@@ -26,6 +28,9 @@ const RECENT_SESSIONS_MAX = 10;
 /** Rolling food-log window — whichever cap hits first, oldest entries go. */
 const FOOD_LOG_MAX_ENTRIES = 300;
 const FOOD_LOG_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // ~30 days
+
+/** Weigh-in history cap — one entry per day, so ~13 months of daily logs. */
+const WEIGHT_LOG_MAX = 400;
 
 /** How many entries count toward the given local date. */
 function countForDate(log: LoggedFood[], forDate: string): number {
@@ -116,6 +121,13 @@ interface UserDataState extends SharedUserData {
   removeFood: (id: string) => void;
   /** Adjusts today's water by ±ml, clamped at zero. */
   addWater: (ml: number) => void;
+  /**
+   * Records a weigh-in: appends to weightLog (a repeat log on the same
+   * local day replaces that day's entry) and keeps
+   * dailySignals.currentWeight in sync so every existing reader stays
+   * truthful. Rounded to 0.1 kg, log capped at WEIGHT_LOG_MAX.
+   */
+  logWeight: (kg: number) => void;
   /** Wipes everything — dev/reset action. */
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -299,6 +311,20 @@ export const useUserDataStore = create<UserDataState>()(
             waterMl: Math.max(0, (state.dailySignals.waterMl ?? 0) + ml),
           },
         })),
+      logWeight: (kg) =>
+        set((state) => {
+          const rounded = Math.round(kg * 10) / 10;
+          const forDate = todayLocalISODate();
+          const entry: WeightEntry = { at: Date.now(), forDate, kg: rounded };
+          const log = [
+            ...(state.weightLog ?? []).filter((e) => e.forDate !== forDate),
+            entry,
+          ].slice(-WEIGHT_LOG_MAX);
+          return {
+            weightLog: log,
+            dailySignals: { ...state.dailySignals, currentWeight: rounded },
+          };
+        }),
       reset: () => set({ ...EMPTY_SHARED_USER_DATA }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
@@ -309,9 +335,24 @@ export const useUserDataStore = create<UserDataState>()(
       // `version` and extend `migrate` to carry old data forward —
       // zustand otherwise drops persisted state silently, which would
       // wipe a tester's history on an OTA update. Version 1 is the
-      // tester-round baseline (all fields optional; 0 -> 1 is identity).
-      version: 1,
-      migrate: (persisted) => persisted as never,
+      // tester-round baseline; version 2 adds weightLog, seeded from the
+      // last known currentWeight (flagged `seeded` — it marks "first
+      // known weight as of this update", not a real weigh-in moment).
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version < 2) {
+          const state = persisted as Partial<SharedUserData>;
+          const kg = state.dailySignals?.currentWeight;
+          return {
+            ...state,
+            weightLog:
+              typeof kg === 'number'
+                ? [{ at: Date.now(), forDate: todayLocalISODate(), kg, seeded: true }]
+                : [],
+          } as never;
+        }
+        return persisted as never;
+      },
       partialize: ({ hasHydrated, ...rest }) => rest,
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

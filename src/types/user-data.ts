@@ -288,6 +288,15 @@ export interface TeamEvent {
 }
 
 /** The top-level shape held by the store. Categories default to empty objects. */
+/** One weigh-in. `forDate` is the local ISO day it counts toward. */
+export interface WeightEntry {
+  at: number;
+  forDate: string;
+  kg: number;
+  /** Migration seed — "first known weight", not a real weigh-in moment. */
+  seeded?: boolean;
+}
+
 export interface SharedUserData {
   userProfile: UserProfile;
   programmeState: ProgrammeState;
@@ -302,6 +311,13 @@ export interface SharedUserData {
    * window (see the store) so AsyncStorage stays bounded.
    */
   foodLog: LoggedFood[];
+  /**
+   * Weigh-in history, oldest first, one entry per local day (a repeat
+   * same-day log replaces). Capped in the store. Drives the rate-of-loss
+   * trend on Home and Insights; dailySignals.currentWeight stays the
+   * latest entry.
+   */
+  weightLog: WeightEntry[];
 }
 
 /** Default value for a brand-new account — every category present but empty. */
@@ -314,4 +330,5 @@ export const EMPTY_SHARED_USER_DATA: SharedUserData = {
   patternFlags: [],
   events: [],
   foodLog: [],
+  weightLog: [],
 };

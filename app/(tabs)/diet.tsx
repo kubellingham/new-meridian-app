@@ -42,7 +42,7 @@ export default function DietScreen() {
   const waterMl = useUserDataStore((s) => s.dailySignals.waterMl);
   const hasHydrated = useUserDataStore((s) => s.hasHydrated);
   const updateNutritionState = useUserDataStore((s) => s.updateNutritionState);
-  const updateDailySignals = useUserDataStore((s) => s.updateDailySignals);
+  const logWeight = useUserDataStore((s) => s.logWeight);
   const addWater = useUserDataStore((s) => s.addWater);
   const updateFood = useUserDataStore((s) => s.updateFood);
   const removeFood = useUserDataStore((s) => s.removeFood);
@@ -115,7 +115,7 @@ export default function DietScreen() {
    * also be replaced here; NS-owned target setting arrives later.)
    */
   function handleLogWeight(weightKg: number) {
-    updateDailySignals({ currentWeight: weightKg });
+    logWeight(weightKg);
     const computed = computeTargets(userProfile, weightKg);
     if (computed) updateNutritionState(computed);
   }
