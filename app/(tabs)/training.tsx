@@ -1,15 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet } from 'react-native';
 
-import { AppText, Button, Card, Screen } from '@/src/components/ui';
+import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import {
-  TrainerIntakeCard,
+  TrainerIntakeFlow,
   TrainerRepickCard,
   WorkoutStateCard,
-  type TrainerIntakeResult,
 } from '@/src/components/workout';
 import { getCharacter } from '@/src/content/characters';
+import { getIntakeScript } from '@/src/content/intake';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { makeEventId } from '@/src/services/events';
 import { generateWorkoutPlan } from '@/src/services/workout-generation';
@@ -35,9 +35,8 @@ export default function TrainingScreen() {
   const currentPlan = useUserDataStore((s) => s.programmeState.currentPlan);
   const currentSession = useUserDataStore((s) => s.programmeState.currentSession);
   const recentSessions = useUserDataStore((s) => s.programmeState.recentSessions);
-  const equipmentAccess = useUserDataStore((s) => s.userProfile.equipmentAccess);
+  const intakeCompletedBy = useUserDataStore((s) => s.programmeState.intakeCompletedBy);
   const setCurrentPlan = useUserDataStore((s) => s.setCurrentPlan);
-  const updateUserProfile = useUserDataStore((s) => s.updateUserProfile);
   const startSession = useUserDataStore((s) => s.startSession);
   const emitEvent = useUserDataStore((s) => s.emitEvent);
 
@@ -77,9 +76,11 @@ export default function TrainingScreen() {
   }
 
   const trainerName = trainer.name;
-  // First visit: the trainer asks their three setup questions before any
-  // plan can be generated — the answers filter the exercise database.
-  const needsIntake = equipmentAccess === undefined;
+  // First time with THIS trainer: they run their own intake before any
+  // plan exists. Relationship-scoped — a newly picked trainer asks their
+  // own questions even when facts are already on file.
+  const intakeScript = getIntakeScript(trainerId);
+  const needsIntake = intakeScript !== undefined && intakeCompletedBy !== trainerId;
   const cardState = deriveWorkoutState(
     { currentPlan, currentSession, recentSessions },
     generating,
@@ -154,6 +155,29 @@ export default function TrainingScreen() {
     });
   }
 
+  // First-time intake takes the whole surface — it's the trainer's
+  // opening conversation, not a card among widgets. KAV covers the two
+  // free-text questions.
+  if (needsIntake && intakeScript) {
+    return (
+      <Screen>
+        <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            <AppText variant="title">Training Hub</AppText>
+            <AppText variant="label" style={styles.subheading}>
+              First session prep with {trainerName}
+            </AppText>
+            <TrainerIntakeFlow script={intakeScript} onDone={() => {}} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -162,21 +186,13 @@ export default function TrainingScreen() {
           Training with {trainerName}
         </AppText>
 
-        {needsIntake ? (
-          <TrainerIntakeCard
-            trainerId={trainerId}
-            trainerName={trainerName}
-            onComplete={(result: TrainerIntakeResult) => updateUserProfile(result)}
-          />
-        ) : (
-          <WorkoutStateCard
-            state={cardState}
-            trainerName={trainerName}
-            onGenerate={handleGenerate}
-            onStart={handleStart}
-            onResume={handleResume}
-          />
-        )}
+        <WorkoutStateCard
+          state={cardState}
+          trainerName={trainerName}
+          onGenerate={handleGenerate}
+          onStart={handleStart}
+          onResume={handleResume}
+        />
 
         <Button
           label={`Talk to ${trainerName}`}
@@ -212,6 +228,9 @@ export default function TrainingScreen() {
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     paddingBottom: spacing.xxl,
   },

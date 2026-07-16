@@ -180,7 +180,7 @@ export const SPECIALIST_ONBOARDING: Record<CharacterId, SpecialistOnboarding> = 
       'Hello, {NAME}. Noa.',
       "Here's my offer, complete. Twelve weeks. Not twelve weeks and we'll see — twelve weeks, and then we stop, and then I teach you the harder part, which is keeping it.",
       "The deficit is real and you will be hungry. I won't pretend otherwise and I won't apologize for it. You'll lift heavy four times a week and hit your protein every day — that's what decides whether you keep your muscle or just get smaller. Weigh-ins weekly, against numbers I've given you in advance.",
-      "One thing before you choose me: I don't take everyone. If you're barely sleeping, or life is rough right now, I'll say so and walk you to a colleague myself. This method needs a stable base.",
+      "One thing before you choose me: I'm honest about fit. If you're barely sleeping, or life is rough right now, I'll say so plainly — and the choice stays yours. This method needs a stable base, and you deserve to know that up front.",
       "Meet the others. If you want the long road, they're excellent at it. If you want an edge you can see — that's me.",
     ],
     commit: [

@@ -90,7 +90,19 @@ function shareableFacts(data: SharedUserData): string[] {
   if (profile.fitnessExperience) {
     lines.push(`fitness experience: ${profile.fitnessExperience}`);
   }
-  if (profile.trainingHistory) lines.push(profile.trainingHistory);
+  // Training logistics from the trainer's intake — visible to the whole
+  // team so nobody re-asks what the trainer already collected.
+  const logistics: string[] = [];
+  if (profile.trainingDaysPerWeek) logistics.push(`${profile.trainingDaysPerWeek} days/week`);
+  if (profile.sessionLengthMinutes) logistics.push(`~${profile.sessionLengthMinutes} min sessions`);
+  if (profile.trainingPlace) logistics.push(`trains ${profile.trainingPlace === 'mix' ? 'in a mix of places' : profile.trainingPlace === 'gym' ? 'at a gym' : profile.trainingPlace === 'home' ? 'at home' : 'outdoors'}`);
+  if (profile.preferredTrainingTime && profile.preferredTrainingTime !== 'varies') {
+    logistics.push(`usually ${profile.preferredTrainingTime}s`);
+  }
+  if (logistics.length > 0) lines.push(`training setup: ${logistics.join(', ')}`);
+  if (profile.trainingHistory) {
+    lines.push(`from their trainer's intake: ${profile.trainingHistory}`);
+  }
   if (profile.culturalBackground) {
     lines.push(`cultural context: ${profile.culturalBackground}`);
   }
