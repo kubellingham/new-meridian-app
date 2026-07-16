@@ -67,14 +67,12 @@ function SpokenLines({
 }
 
 /**
- * Scripted first-run — the weight-loss onboarding path built as a
- * text-forward walk of Kael and Sera's beats (see
- * src/content/onboarding/weight-loss.ts). Collects name, birthday,
+ * Scripted first-run — a text-forward walk of Kael and Sera's beats
+ * (content in src/content/onboarding/flows.ts). Collects name, birthday,
  * gender, goal, activity, height/weight/goal-weight, the emotional read,
  * coaching style, trainer, and NS; writes them into the real stores at
- * the end, computes targets, and lands on Home. Replaces the temporary
- * dev setup screen. No Claude API calls — every line is pre-written per
- * the locked script.
+ * the end, computes targets, and lands on Home. No Claude API calls —
+ * every line is pre-written per the locked script.
  */
 export default function OnboardingScreen() {
   // Progress is persisted (see onboarding-store); don't render — and

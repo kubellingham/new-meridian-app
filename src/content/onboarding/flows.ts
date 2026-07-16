@@ -1,13 +1,15 @@
 /**
  * The onboarding script, as data — a linear walk of beats Kael and Sera
  * narrate to assemble the user's team and collect exactly what the app
- * needs to run. Text-forward (no voice-over, no portraits); the
- * weight-loss VOICE lines come from
- * Meridian_Weight_Loss_Onboarding_Script_v1.md; the build-muscle and
- * general-fitness branches are drafted here with the same conventions.
- * All copy is pre-written and static — the Claude API only takes over
- * once the user is in the product (script principle #6). {NAME},
- * {TRAINER}, {NS} tokens are interpolated by the controller.
+ * needs to run. Text-forward (no voice-over, no portraits). Kael/Sera
+ * lines originate from Meridian_Weight_Loss_Onboarding_Script_v1.md;
+ * the weight-loss trainer content follows Trainer Roster v1
+ * (docs/Meridian_Weight_Loss_Trainer_Roster_v1.md); the dormant
+ * build-muscle and general-fitness branches were drafted here with the
+ * same conventions. All copy is pre-written and static — the Claude API
+ * only takes over once the user is in the product (script principle
+ * #6). {NAME}, {TRAINER}, {NS} tokens are interpolated by the
+ * controller.
  *
  * One parameterized flow: `buildOnboardingFlow(goal)`. Every goal shares
  * the same beat sequence; only Kael's goal reactions, the numbers beat,
@@ -432,9 +434,12 @@ const OPENING_BEATS: OnboardingBeat[] = [
       {
         value: 'weight-loss',
         label: 'Lose weight',
+        // Kael has no favorite method (roster doc: recommendations are
+        // fit-based, never quality-based) — this line must sit equally
+        // in front of all five coaches, Noa included.
         reaction: [
           "Okay. That's a real one.",
-          "We'll build this properly. Not fast — properly. There's a difference, and it matters.",
+          "We'll set you up properly. How it gets done — that's between you and the coach you pick.",
         ],
       },
       // Dormant goals (weight-loss-first pivot): visible so the product's
@@ -683,6 +688,12 @@ const GOAL_FRAMING: Record<PrimaryGoal, string> = {
  */
 function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
   if (goal === 'weight-loss') {
+    // The shape lines draw on each trainer's projectionProfile
+    // ratePhilosophyNote (src/content/characters/*.ts) — Kael describes
+    // how each coach works, in his own voice. Rules: rate numbers attach
+    // only to a coach's method, never to the user (no outcome data, no
+    // fabricated projections); no ranking; the non-rate positions
+    // (Renata/Marcus/Priya) read as positions, never as evasions.
     return {
       kind: 'say',
       speaker: 'kael',
@@ -690,8 +701,9 @@ function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
       lines: [
         'Alright. Now we put the rest of your team together. First — your trainer.',
         "Five of my people do weight loss, and they don't agree with each other about how. I want to be upfront about that, because it's not a flaw in the roster.",
-        "They all get people to the same place. They just don't agree on the road. That's not a problem — it's why you get to choose.",
-        'Meet whoever you like. The right one is whoever feels right to you, not whoever I think is best on paper.',
+        "The shapes are genuinely different. Cassidy works at about half a kilo a week, open-ended — a long project, and she'd tell you that's the point. Noa works in twelve-week blocks at a real pace, and then stops. On purpose.",
+        "Renata, Marcus, and Priya don't run on the scale at all — for them it's whether your strength holds, what your body can do, whether you're still training next year. The weight follows.",
+        "They all get people to the same place. They just don't agree on the road — that's why you get to choose. Meet whoever you like; the right one is whoever feels right to you, not whoever I think is best on paper.",
       ],
     };
   }
@@ -726,7 +738,7 @@ const CLOSING_BEATS: OnboardingBeat[] = [
       'Good pick.',
       'Now — onto the next part. This one might be the most interesting, because food is where most people quietly sabotage themselves without realizing it. The Diet Corner is where your nutrition specialist lives. They handle everything you eat — what, when, how much, and why.',
       "Unlike trainers, who specialize by goal, nutrition specialists specialize by culture. Because food isn't just fuel. It's where you come from. It's what your grandmother made you. It's what you actually enjoy.",
-      "You've got eight specialists, each from a different food tradition. I'm not going to pre-pick this time — too personal. Take a look. When you find the right one, choose them.",
+      "You've got eight specialists, each from a different food tradition. I'm not going to pre-pick — too personal. Take a look. When you find the right one, choose them.",
     ],
   },
   {
@@ -745,6 +757,10 @@ const CLOSING_BEATS: OnboardingBeat[] = [
     lines: [
       'Alright, {NAME}. So we’ve got it.',
       'Me — your consultant, your operations. Sera, alongside me, for the mental side. {TRAINER} as your trainer, building you a body you keep. {NS} in the Diet Corner, working with whatever you eat. That’s your team.',
+      // Expectation-setting: onboarding collects the basics; the trainer
+      // has their own questions — their agenda, not a longer form.
+      "One more thing. I've got what I needed — {TRAINER} will want more. How your week actually looks, what you've got to train with, what hurts.",
+      "That's theirs to ask, not mine.",
     ],
   },
   {
