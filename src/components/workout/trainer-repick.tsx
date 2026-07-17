@@ -8,6 +8,7 @@ import {
   type CharacterId,
 } from '@/src/content/characters';
 import { SPECIALIST_ONBOARDING } from '@/src/content/onboarding/flows';
+import { hueFor } from '@/src/theme/character-hues';
 import { colors, spacing } from '@/src/theme/theme';
 
 interface Props {
@@ -38,8 +39,8 @@ export function TrainerRepickCard({ retiredTrainerId, userName, onCommit }: Prop
   // Committed: the new trainer's commit lines, then hand back to the Hub.
   if (committed && meeting) {
     return (
-      <Card style={styles.card}>
-        <AppText variant="label" color={colors.primary}>
+      <Card hairline={hueFor(meeting)} style={styles.card}>
+        <AppText variant="speaker" color={hueFor(meeting)}>
           {getCharacter(meeting).name}
         </AppText>
         {SPECIALIST_ONBOARDING[meeting].commit.map((line, i) => (
@@ -61,8 +62,8 @@ export function TrainerRepickCard({ retiredTrainerId, userName, onCommit }: Prop
   if (meeting) {
     const met = getCharacter(meeting);
     return (
-      <Card style={styles.card}>
-        <AppText variant="label" color={colors.primary}>
+      <Card hairline={hueFor(meeting)} style={styles.card}>
+        <AppText variant="speaker" color={hueFor(meeting)}>
           {met.name}
         </AppText>
         {SPECIALIST_ONBOARDING[meeting].intro.map((line, i) => (
@@ -90,8 +91,8 @@ export function TrainerRepickCard({ retiredTrainerId, userName, onCommit }: Prop
   // Kael's honest explanation above the roster.
   return (
     <View>
-      <Card style={styles.card} testID="repick-note">
-        <AppText variant="label" color={colors.primary}>
+      <Card hairline={hueFor('kael')} style={styles.card} testID="repick-note">
+        <AppText variant="speaker" color={hueFor('kael')}>
           Kael
         </AppText>
         <AppText variant="body" style={styles.line}>

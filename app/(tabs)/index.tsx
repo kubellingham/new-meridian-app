@@ -20,6 +20,7 @@ import { computeWeightTrend } from '@/src/services/weight-trend';
 import { deriveWorkoutState, type WorkoutCardState } from '@/src/services/workout-state';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
+import { hueFor } from '@/src/theme/character-hues';
 import { colors, spacing } from '@/src/theme/theme';
 
 /**
@@ -146,6 +147,7 @@ export default function HomeScreen() {
         {retiredTrainer && (
           <TeamNoteCard
             from="Kael"
+            fromId="kael"
             preview={`A staffing note: ${retiredTrainer.name} has moved on from Meridian. The weight-loss roster is different now — five coaches who genuinely don't agree about the method. Come meet them and pick yours.`}
             onOpen={() => router.push('/(tabs)/training')}
           />
@@ -155,6 +157,7 @@ export default function HomeScreen() {
         {pendingBrief && (
           <TeamNoteCard
             from="Kael"
+            fromId="kael"
             preview={pendingBrief.summary}
             onOpen={() => router.push('/kael')}
           />
@@ -178,10 +181,10 @@ export default function HomeScreen() {
             style={styles.half}
           >
             <Card style={styles.widget}>
-              <AppText variant="label">Weigh-in</AppText>
+              <AppText variant="overline">Weigh-in</AppText>
               {currentWeight !== undefined ? (
                 <>
-                  <AppText variant="subtitle" style={styles.widgetValue} testID="home-weight-value">
+                  <AppText variant="statValue" style={styles.widgetValue} testID="home-weight-value">
                     {currentWeight} kg
                   </AppText>
                   <AppText variant="caption" testID="home-weight-caption">
@@ -190,7 +193,7 @@ export default function HomeScreen() {
                 </>
               ) : (
                 <>
-                  <AppText variant="subtitle" style={styles.widgetValue}>
+                  <AppText variant="statValue" style={styles.widgetValue}>
                     —
                   </AppText>
                   <AppText variant="caption">Tap to log your first weight.</AppText>
@@ -201,7 +204,7 @@ export default function HomeScreen() {
 
           <View style={styles.half}>
             <Card style={styles.widget}>
-              <AppText variant="label">Streak</AppText>
+              <AppText variant="overline">Streak</AppText>
               <AppText
                 variant="subtitle"
                 style={styles.widgetValue}
@@ -226,7 +229,7 @@ export default function HomeScreen() {
             style={styles.half}
           >
             <Card style={styles.widget}>
-              <AppText variant="label">Today&apos;s training</AppText>
+              <AppText variant="overline">Today&apos;s training</AppText>
               <AppText
                 variant="subtitle"
                 style={styles.widgetValue}
@@ -257,8 +260,8 @@ export default function HomeScreen() {
             style={styles.half}
           >
             <Card style={styles.widget}>
-              <AppText variant="label">Water</AppText>
-              <AppText variant="subtitle" style={styles.widgetValue} testID="home-water-value">
+              <AppText variant="overline">Water</AppText>
+              <AppText variant="statValue" style={styles.widgetValue} testID="home-water-value">
                 {waterL} L
               </AppText>
               <AppText variant="caption">Tap to add a glass.</AppText>
@@ -269,7 +272,7 @@ export default function HomeScreen() {
         {/* Sleep & steps — honest placeholder until Health Connect lands. */}
         <Card style={[styles.widget, styles.slim]}>
           <View style={styles.slimRow}>
-            <AppText variant="label">Sleep & steps</AppText>
+            <AppText variant="overline">Sleep & steps</AppText>
             <AppText variant="caption" color={colors.muted}>
               awaiting Health Connect
             </AppText>
@@ -284,7 +287,7 @@ export default function HomeScreen() {
             testID="home-ns-note"
           >
             <Card tone="panel" style={styles.widget}>
-              <AppText variant="label" color={colors.primary}>
+              <AppText variant="speaker" color={hueFor(nsId)}>
                 {ns.name}
               </AppText>
               <AppText variant="body" style={styles.widgetValue}>

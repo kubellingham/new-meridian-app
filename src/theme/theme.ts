@@ -1,36 +1,39 @@
 /**
- * Meridian design tokens — Master Brief v2.0, Section 13.
- *
- * Design principle (locked): restrained, functional dark UI. The electric
- * cyan accent is used sparingly — at most 2-3 elements per screen. No
- * attempt at a distinctive visual identity in V1; a designer refines
- * post-launch.
+ * Meridian design tokens — "The Practice" (Claude Design system,
+ * project d0756814: warm ink + brass, serif-forward). Supersedes the
+ * V1 placeholder cyan-on-navy from Master Brief §13. A good consulting
+ * room at 8pm: warm, calm, credible. The brass accent keeps the old
+ * rule — at most 2-3 accented elements per screen.
  */
 
-/** Brand colour palette — exact values from the brief. Do not improvise. */
+/** Brand colour palette — exact values from the design tokens. Do not improvise. */
 export const colors = {
-  /** Near-black app background. Everything lives on this. */
-  base: '#080E1A',
-  /** Dark panel — card backgrounds. */
-  surface: '#111827',
-  /** Elevated dark — modals, bubbles, raised panels. */
-  panel: '#1C2740',
-  /** Electric cyan — THE accent. Max 2-3 elements per screen. */
-  primary: '#00D4FF',
-  /** Deep blue — secondary accent, links, passive data. */
-  secondary: '#0A84FF',
-  /** Cool off-white — primary text. */
-  text: '#F0F4FF',
-  /** Gray-blue — secondary text, labels, timestamps. */
-  muted: '#6B7FA3',
-  /** Achievement green — PRs, streaks, goal completions. */
-  success: '#00C896',
-  /** Amber — missed targets, gentle alerts. */
-  warning: '#FFB020',
-  /** Red — errors and critical alerts only. */
-  error: '#FF4545',
-  /** Subtle border for cards on the base background. */
-  border: 'rgba(107, 127, 163, 0.18)',
+  /** Warm ink — app background. Everything lives on this. */
+  base: '#141210',
+  /** Card background. */
+  surface: '#1D1A17',
+  /** Elevated panel — modals, bubbles, track fills. */
+  panel: '#282320',
+  /** Brass — THE accent, candlelight against ink. Max 2-3 uses per screen. */
+  primary: '#D9A441',
+  /** Text on brass fills (primary buttons, hold bar past the fill line). */
+  onPrimary: '#1C1608',
+  /** Worn bronze — secondary emphasis, quiet fills. */
+  secondary: '#8C7B65',
+  /** Warm paper — primary text. */
+  text: '#F4EFE6',
+  /** Warm gray — secondary text, labels, timestamps (AA at caption size). */
+  muted: '#9A8F80',
+  /** Muted sage — streaks, goal completions. Never neon. */
+  success: '#8BA888',
+  /** Clay — missed targets, gentle alerts. */
+  warning: '#C97F5D',
+  /** Quiet red — errors and critical alerts only. */
+  error: '#C4635B',
+  /** Hairline border for cards. */
+  border: 'rgba(154, 143, 128, 0.22)',
+  /** Stronger outline — secondary buttons, chips, the hold track. */
+  borderStrong: 'rgba(154, 143, 128, 0.38)',
 } as const;
 
 /** Spacing scale (px). Use these instead of magic numbers. */

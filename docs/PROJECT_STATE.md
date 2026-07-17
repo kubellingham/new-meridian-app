@@ -46,6 +46,7 @@ This document is the full, authoritative record of the Meridian build — writte
 - **Nutrition math**: Mifflin–St Jeor BMR → activity multiplier → TDEE → goal adjustment (−20% / +10% / maintenance) with per-goal protein (1.8 / 2.0 / 1.6 g/kg), fats 27% of calories, 1300 kcal floor. `computeEnergy` exports BMR/TDEE/BMI for the Insights tab.
 - **Food data**: Open Food Facts (no key) for barcode + search, with serving-aware mapping (label serving preferred over per-100g) and gram-based portion entry.
 - **CI/CD**: GitHub Actions — manual dev-client build, manual **preview (tester APK) build**, and on-push OTA updates to **both** channels (`development` + `preview`). EAS runtimeVersion = appVersion policy, so JS ships OTA; native changes need a rebuild + version bump.
+- **Design**: "The Practice" (Claude Design system, project d0756814) — warm ink + brass, serif-forward (Playfair for hero numbers, speaker names, stat values; DM Sans UI), per-character accent hues on speaker labels/card hairlines only, uppercase overline card labels. Tokens in `src/theme/theme.ts` + `src/theme/character-hues.ts`. Splash/native background still old navy until the next APK build (native-side).
 - **Testing discipline**: 226 Jest tests (services, stores, content integrity, proxy handler), plus a library of Playwright drive scripts that run the real web build against seeded localStorage — including a stub-proxy drive that renders live replies and quick-reply chips end-to-end.
 
 ## 5. Complete feature inventory (all shipped and verified)

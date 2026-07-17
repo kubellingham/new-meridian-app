@@ -5,16 +5,26 @@ import { colors, radius, spacing } from '@/src/theme/theme';
 type CardProps = ViewProps & {
   /** `surface` (default) for standard cards, `panel` for elevated ones. */
   tone?: 'surface' | 'panel';
+  /**
+   * Top-edge accent color — the design system's character-hue hairline
+   * (speech cards carry the speaker's hue). Never a full-card tint.
+   */
+  hairline?: string;
 };
 
 /**
- * Plain dark card. Functional design per the brief — subtle border,
+ * Plain warm-ink card (The Practice design system) — hairline border,
  * no gradients, no blur.
  */
-export function Card({ tone = 'surface', style, ...rest }: CardProps) {
+export function Card({ tone = 'surface', hairline, style, ...rest }: CardProps) {
   return (
     <View
-      style={[styles.base, tone === 'panel' ? styles.panel : styles.surface, style]}
+      style={[
+        styles.base,
+        tone === 'panel' ? styles.panel : styles.surface,
+        hairline ? { borderTopWidth: 1, borderTopColor: hairline } : undefined,
+        style,
+      ]}
       {...rest}
     />
   );

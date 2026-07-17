@@ -2,11 +2,15 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Card } from '@/src/components/ui';
+import type { CharacterId } from '@/src/content/characters';
+import { hueFor } from '@/src/theme/character-hues';
 import { colors, spacing } from '@/src/theme/theme';
 
 type TeamNoteCardProps = {
   /** Who the note is from, e.g. "Kael". */
   from: string;
+  /** Sender id for the character-hue accent; falls back to muted. */
+  fromId?: CharacterId;
   /** Optional one-line preview of the note. */
   preview?: string;
   /** Opens the note (navigates to the sender's chat). */
@@ -19,16 +23,17 @@ type TeamNoteCardProps = {
  * purpose so any team member's proactive note (morning brief now; Sera's
  * check-ins, event alerts later) reuses the same surface.
  */
-export function TeamNoteCard({ from, preview, onOpen }: TeamNoteCardProps) {
+export function TeamNoteCard({ from, fromId, preview, onOpen }: TeamNoteCardProps) {
+  const hue = hueFor(fromId);
   return (
     <Pressable onPress={onOpen} accessibilityRole="button" testID="team-note-card">
-      <Card tone="panel" style={styles.card}>
+      <Card tone="panel" hairline={hue} style={styles.card}>
         <View style={styles.row}>
           <View style={styles.iconWrap}>
-            <Ionicons name="mail-outline" size={18} color={colors.primary} />
+            <Ionicons name="mail-outline" size={18} color={hue} />
           </View>
           <View style={styles.text}>
-            <AppText variant="label" color={colors.primary}>
+            <AppText variant="speaker" color={hue}>
               {from} has a note for you
             </AppText>
             {preview ? (

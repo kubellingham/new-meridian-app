@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     width: '78%',
     height: '38%',
     borderWidth: 2,
-    borderColor: 'rgba(240,244,255,0.55)',
+    borderColor: 'rgba(244,239,230,0.55)',
     borderRadius: radius.md,
   },
   frameActive: {

@@ -8,6 +8,7 @@ import { getDirectedMessage, isClaudeConfigured } from '@/src/services/claude';
 import { makeEventId } from '@/src/services/events';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
+import { hueFor } from '@/src/theme/character-hues';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
 import type { UserProfile } from '@/src/types/user-data';
 
@@ -179,8 +180,8 @@ export function TrainerIntakeFlow({ script, onDone }: Props) {
 
   function speech(lines: string[], testID?: string) {
     return (
-      <Card tone="panel" style={styles.speech} testID={testID}>
-        <AppText variant="label" color={colors.primary} style={styles.speaker}>
+      <Card tone="panel" hairline={hueFor(script.trainerId)} style={styles.speech} testID={testID}>
+        <AppText variant="speaker" color={hueFor(script.trainerId)} style={styles.speaker}>
           {trainer.name}
         </AppText>
         {lines.map((line, i) => (
@@ -297,11 +298,11 @@ export function TrainerIntakeFlow({ script, onDone }: Props) {
     case 'apiPending':
       return (
         <View>
-          <Card tone="panel" style={styles.speech}>
-            <AppText variant="label" color={colors.primary} style={styles.speaker}>
+          <Card tone="panel" hairline={hueFor(script.trainerId)} style={styles.speech}>
+            <AppText variant="speaker" color={hueFor(script.trainerId)} style={styles.speaker}>
               {trainer.name}
             </AppText>
-            <ActivityIndicator color={colors.primary} style={styles.line} />
+            <ActivityIndicator color={colors.muted} style={styles.line} />
           </Card>
         </View>
       );

@@ -7,7 +7,16 @@ import { colors, fonts, fontSizes } from '@/src/theme/theme';
  * - `hero`: Playfair Display, reserved for hero numbers / key data moments.
  * - everything else: DM Sans per the brief's typography rules.
  */
-type Variant = 'hero' | 'title' | 'subtitle' | 'body' | 'label' | 'caption';
+type Variant =
+  | 'hero'
+  | 'statValue'
+  | 'speaker'
+  | 'title'
+  | 'subtitle'
+  | 'body'
+  | 'label'
+  | 'overline'
+  | 'caption';
 
 type AppTextProps = TextProps & {
   variant?: Variant;
@@ -30,9 +39,22 @@ export function AppText({ variant = 'body', color, style, ...rest }: AppTextProp
 
 const styles = StyleSheet.create({
   hero: {
-    fontFamily: fonts.hero,
+    fontFamily: fonts.heroMedium,
     fontSize: fontSizes.hero,
     color: colors.text,
+  },
+  // Serif widget value — the 28px middle size from the design system.
+  statValue: {
+    fontFamily: fonts.heroMedium,
+    fontSize: 28,
+    color: colors.text,
+  },
+  // Speech-card speaker name — serif, tinted the character's hue by the
+  // caller (see src/theme/character-hues.ts).
+  speaker: {
+    fontFamily: fonts.heroMedium,
+    fontSize: fontSizes.body,
+    color: colors.muted,
   },
   title: {
     fontFamily: fonts.bold,
@@ -54,6 +76,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSizes.label,
     color: colors.muted,
+  },
+  // 12px uppercase card/widget overline with the design's tracking.
+  overline: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.caption,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   caption: {
     fontFamily: fonts.regular,

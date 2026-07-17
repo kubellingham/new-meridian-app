@@ -146,7 +146,7 @@ export default function InsightsScreen() {
 
         {/* Weight — current vs starting, the pivot's headline number. */}
         <Card tone="panel" style={styles.card} testID="insights-weight">
-          <AppText variant="label" color={colors.primary}>
+          <AppText variant="overline" color={colors.primary}>
             Where you are
           </AppText>
           <View style={styles.heroRow}>
@@ -168,7 +168,7 @@ export default function InsightsScreen() {
 
         {/* Trend — 7/30-day change and the weekly rate. */}
         <Card style={styles.card} testID="insights-weight-trend">
-          <AppText variant="label">The trend</AppText>
+          <AppText variant="overline">The trend</AppText>
           {trend.weeklyRateKg !== undefined ? (
             <>
               <View style={styles.macroRow}>
@@ -202,7 +202,7 @@ export default function InsightsScreen() {
         {/* The trainer's read on pace — their words, their band if they have one. */}
         {trainer && pace && (
           <Card style={styles.card} testID="insights-trainer-pace">
-            <AppText variant="label">{trainer.name} on pace</AppText>
+            <AppText variant="overline">{trainer.name} on pace</AppText>
             <AppText variant="body" style={styles.cardBody}>
               “{pace.line}”
             </AppText>
@@ -220,7 +220,7 @@ export default function InsightsScreen() {
 
         {/* BMR */}
         <Card style={styles.card} testID="insights-bmr">
-          <AppText variant="label">BMR — resting burn</AppText>
+          <AppText variant="overline">BMR — resting burn</AppText>
           <View style={styles.heroRow}>
             <AppText variant="hero" testID="insights-bmr-value">
               {energy.bmr.toLocaleString()}
@@ -237,7 +237,7 @@ export default function InsightsScreen() {
 
         {/* TDEE */}
         <Card style={styles.card} testID="insights-tdee">
-          <AppText variant="label">TDEE — daily burn</AppText>
+          <AppText variant="overline">TDEE — daily burn</AppText>
           <View style={styles.heroRow}>
             <AppText variant="hero" testID="insights-tdee-value">
               {energy.tdee.toLocaleString()}
@@ -254,7 +254,7 @@ export default function InsightsScreen() {
 
         {/* Daily target */}
         <Card tone="panel" style={styles.card} testID="insights-target">
-          <AppText variant="label" color={colors.primary}>
+          <AppText variant="overline" color={colors.primary}>
             Your daily target
           </AppText>
           <View style={styles.heroRow}>
@@ -270,7 +270,7 @@ export default function InsightsScreen() {
 
         {/* BMI */}
         <Card style={styles.card} testID="insights-bmi">
-          <AppText variant="label">BMI</AppText>
+          <AppText variant="overline">BMI</AppText>
           <View style={styles.heroRow}>
             <AppText variant="hero" testID="insights-bmi-value">
               {energy.bmi}
@@ -288,7 +288,7 @@ export default function InsightsScreen() {
 
         {/* Macro targets */}
         <Card style={styles.card} testID="insights-macros">
-          <AppText variant="label">Macro targets</AppText>
+          <AppText variant="overline">Macro targets</AppText>
           <View style={styles.macroRow}>
             <View style={styles.macroCell}>
               <AppText variant="subtitle">{targets.macroTargets?.proteinG}g</AppText>

@@ -6,9 +6,9 @@ import { AppText } from './app-text';
 type ButtonProps = Omit<PressableProps, 'children'> & {
   label: string;
   /**
-   * - `primary`: cyan fill — the one accent CTA on a screen.
-   * - `secondary`: panel fill — supporting actions.
-   * - `ghost`: borderless — tertiary / inline actions.
+   * - `primary`: brass fill — the one accent CTA on a screen.
+   * - `secondary`: outlined, transparent — supporting actions.
+   * - `ghost`: borderless, muted — tertiary / inline actions.
    */
   variant?: 'primary' | 'secondary' | 'ghost';
   /** Shows a spinner and disables presses while true. */
@@ -34,10 +34,17 @@ export function Button({ label, variant = 'primary', loading, disabled, style, .
       {...rest}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.base : colors.text} />
+        <ActivityIndicator color={variant === 'primary' ? colors.onPrimary : colors.text} />
       ) : (
         <AppText
-          style={[styles.label, variant === 'primary' ? styles.labelOnPrimary : styles.labelOnDark]}
+          style={[
+            styles.label,
+            variant === 'primary'
+              ? styles.labelOnPrimary
+              : variant === 'ghost'
+                ? styles.labelGhost
+                : styles.labelOnDark,
+          ]}
         >
           {label}
         </AppText>
@@ -59,7 +66,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   secondary: {
-    backgroundColor: colors.panel,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   ghost: {
     backgroundColor: 'transparent',
@@ -72,10 +81,13 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.body,
   },
   labelOnPrimary: {
-    // Dark text on the cyan fill for contrast.
-    color: colors.base,
+    // Dark ink on the brass fill.
+    color: colors.onPrimary,
   },
   labelOnDark: {
     color: colors.text,
+  },
+  labelGhost: {
+    color: colors.muted,
   },
 });

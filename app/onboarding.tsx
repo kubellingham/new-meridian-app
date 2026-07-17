@@ -28,6 +28,7 @@ import {
 } from '@/src/content/onboarding/flows';
 import { computeTargets } from '@/src/services/nutrition-targets';
 import { useOnboardingStore } from '@/src/store/onboarding-store';
+import { hueFor } from '@/src/theme/character-hues';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
@@ -55,8 +56,8 @@ function SpokenLines({
   ctx: Ctx;
 }) {
   return (
-    <Card tone="panel" style={styles.speech}>
-      <AppText variant="label" color={colors.primary} style={styles.speaker}>
+    <Card tone="panel" hairline={hueFor(speaker)} style={styles.speech}>
+      <AppText variant="speaker" color={hueFor(speaker)} style={styles.speaker}>
         {getCharacter(speaker).name}
       </AppText>
       {lines.map((line, i) => (

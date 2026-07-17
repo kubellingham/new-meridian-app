@@ -27,6 +27,7 @@ import { speak, stopSpeaking, voiceConfigured } from '@/src/services/voice';
 import { makeMessageId, useChatStore, type ChatMessage } from '@/src/store/chat-store';
 import { useSettingsStore } from '@/src/store/settings-store';
 import { useUserStore } from '@/src/store/user-store';
+import { hueFor } from '@/src/theme/character-hues';
 import { colors, radius, spacing } from '@/src/theme/theme';
 
 type CharacterChatProps = {
@@ -273,7 +274,9 @@ export function CharacterChat({
             </Pressable>
           )}
           <View style={styles.headerText}>
-            <AppText variant="subtitle">{character.name}</AppText>
+            <AppText variant="subtitle" color={hueFor(characterId)}>
+              {character.name}
+            </AppText>
             <AppText variant="caption">{subtitle}</AppText>
           </View>
 
