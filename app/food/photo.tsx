@@ -3,17 +3,30 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { FoodConfirmList } from '@/src/components/diet';
 import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
 import { getCharacter } from '@/src/content/characters';
 import { isClaudeConfigured } from '@/src/services/claude';
 import { makeFoodLogId, MEAL_SLOTS, todayLocalISODate } from '@/src/services/food-log';
-import { getFoodFromPhoto, type ParsedFood } from '@/src/services/food-logging';
+import {
+  getFoodFromPhoto,
+  refineFoodFromPhoto,
+  type ParsedFood,
+  type PhotoExchange,
+} from '@/src/services/food-logging';
 import { useUserDataStore } from '@/src/store/user-data-store';
 import { useUserStore } from '@/src/store/user-store';
-import { colors, radius, spacing } from '@/src/theme/theme';
+import { hueFor } from '@/src/theme/character-hues';
+import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
 import type { MealSlot } from '@/src/types/user-data';
 
 function asMealSlot(value: string | undefined): MealSlot {
@@ -30,10 +43,18 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   exif: false,
 };
 
+/** The always-present catch-all — the NS can't ask what it didn't spot. */
+const CATCH_ALL_QUESTION = 'Anything I missed on the plate?';
+
+type PhotoMediaType = 'image/jpeg' | 'image/png' | 'image/webp';
+
 /**
  * Photo logging — the NS looks at the plate. Take or pick a photo, the
- * NS identifies what's on it and estimates the numbers, the user gets
- * the last word in the confirm list before anything is logged.
+ * NS identifies what's on it and estimates the numbers, then asks
+ * (optionally answerable) follow-up questions about what the photo
+ * can't show — cooking method, hidden ingredients, oil. Answers refine
+ * the estimate; the user always keeps the last word in the confirm
+ * list, which never waits on the questions.
  */
 export default function FoodPhotoScreen() {
   const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
@@ -44,9 +65,18 @@ export default function FoodPhotoScreen() {
   const ns = nsId ? getCharacter(nsId) : null;
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoData, setPhotoData] = useState<{ base64: string; mediaType: PhotoMediaType } | null>(
+    null,
+  );
   const [analyzing, setAnalyzing] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [reply, setReply] = useState<string | null>(null);
   const [foods, setFoods] = useState<ParsedFood[]>([]);
+  const [followUps, setFollowUps] = useState<string[]>([]);
+  /** Draft answers, keyed by question index; last slot is the catch-all. */
+  const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>({});
+  /** Completed analysis rounds, so refinement rebuilds the whole thread. */
+  const [exchanges, setExchanges] = useState<PhotoExchange[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
   async function pick(from: 'camera' | 'library') {
@@ -70,12 +100,17 @@ export default function FoodPhotoScreen() {
     setAnalyzing(true);
     setReply(null);
     setFoods([]);
+    setFollowUps([]);
+    setAnswerDrafts({});
+    setExchanges([]);
     try {
-      const mediaType =
+      const mediaType: PhotoMediaType =
         mimeType === 'image/png' || mimeType === 'image/webp' ? mimeType : 'image/jpeg';
+      setPhotoData({ base64, mediaType });
       const result = await getFoodFromPhoto(nsId, name, base64, mediaType);
       setReply(result.reply || null);
       setFoods(result.foods);
+      setFollowUps(result.followUps);
       if (result.foods.length === 0 && !result.reply) {
         setNotice("Couldn't make out any food in that photo.");
       }
@@ -84,6 +119,40 @@ export default function FoodPhotoScreen() {
       setNotice('Something went wrong reading the photo. Try again in a moment.');
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  /** The question list shown for answering — NS's own + the catch-all. */
+  const questions = foods.length > 0 && !analyzing ? [...followUps, CATCH_ALL_QUESTION] : [];
+  const answeredPairs = questions
+    .map((question, i) => ({ question, answer: (answerDrafts[i] ?? '').trim() }))
+    .filter((p) => p.answer.length > 0);
+
+  async function refine() {
+    if (!nsId || !photoData || answeredPairs.length === 0) return;
+    setRefining(true);
+    setNotice(null);
+    const round: PhotoExchange = { reply: reply ?? '', foods, answers: answeredPairs };
+    try {
+      const result = await refineFoodFromPhoto(
+        nsId,
+        name,
+        photoData.base64,
+        photoData.mediaType,
+        [...exchanges, round],
+      );
+      setExchanges((prev) => [...prev, round]);
+      setReply(result.reply || null);
+      // The refined list replaces the old one — but never silently
+      // downgrade to nothing if the model came back foodless.
+      if (result.foods.length > 0) setFoods(result.foods);
+      setFollowUps(result.followUps);
+      setAnswerDrafts({});
+    } catch (e) {
+      console.error('Photo refinement failed:', e);
+      setNotice("Couldn't update the estimate just now — the current one still stands.");
+    } finally {
+      setRefining(false);
     }
   }
 
@@ -165,8 +234,8 @@ export default function FoodPhotoScreen() {
           )}
 
           {reply && (
-            <Card tone="panel" style={styles.replyCard}>
-              <AppText variant="label" color={colors.primary}>
+            <Card tone="panel" hairline={hueFor(nsId)} style={styles.replyCard}>
+              <AppText variant="speaker" color={hueFor(nsId)}>
                 {ns.name}
               </AppText>
               <AppText variant="body" style={styles.replyText}>
@@ -182,6 +251,43 @@ export default function FoodPhotoScreen() {
               onConfirm={handleConfirm}
               confirmLabel="Log the plate"
             />
+          )}
+
+          {refining ? (
+            <Card style={styles.analyzingCard} testID="photo-refining">
+              <AppText variant="body">{ns.name} is thinking it over…</AppText>
+            </Card>
+          ) : (
+            questions.length > 0 && (
+              <Card style={styles.questionsCard} testID="photo-questions">
+                <AppText variant="overline">Help {ns.name} get it right</AppText>
+                <AppText variant="caption" color={colors.muted}>
+                  Answer any, skip any — or just log the plate as it stands.
+                </AppText>
+                {questions.map((question, i) => (
+                  <View key={`${question}-${i}`} style={styles.questionField}>
+                    <AppText variant="body">{question}</AppText>
+                    <TextInput
+                      value={answerDrafts[i] ?? ''}
+                      onChangeText={(v) =>
+                        setAnswerDrafts((prev) => ({ ...prev, [i]: v }))
+                      }
+                      placeholder="Optional"
+                      placeholderTextColor={colors.muted}
+                      style={styles.answerInput}
+                      testID={`photo-answer-${i}`}
+                    />
+                  </View>
+                ))}
+                <Button
+                  label="Update the estimate"
+                  variant="secondary"
+                  onPress={() => void refine()}
+                  disabled={answeredPairs.length === 0}
+                  testID="photo-refine"
+                />
+              </Card>
+            )
           )}
 
           {notice && (
@@ -234,6 +340,23 @@ const styles = StyleSheet.create({
   },
   replyText: {
     fontStyle: 'italic',
+  },
+  questionsCard: {
+    gap: spacing.sm,
+  },
+  questionField: {
+    gap: spacing.xs,
+  },
+  answerInput: {
+    backgroundColor: colors.panel,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    color: colors.text,
+    fontFamily: fonts.regular,
+    fontSize: fontSizes.body,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   noticeCard: {
     borderColor: colors.warning,

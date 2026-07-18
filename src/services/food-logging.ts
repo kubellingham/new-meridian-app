@@ -36,6 +36,24 @@ export interface FoodLoggingResult {
   reply: string;
   foods: ParsedFood[];
   suggestedReplies: string[];
+  /**
+   * Optional questions the NS asked about what the photo can't show
+   * (cooking method, hidden ingredients, oil). Photo path only; always
+   * safe to ignore — answering is never required.
+   */
+  followUps: string[];
+}
+
+/**
+ * One completed photo-analysis round: what the NS said and logged, and
+ * the answers the user gave to its follow-ups (empty until they do).
+ * The screen accumulates these so each refinement call can rebuild the
+ * whole conversation faithfully.
+ */
+export interface PhotoExchange {
+  reply: string;
+  foods: ParsedFood[];
+  answers: { question: string; answer: string }[];
 }
 
 /** The meal slots the tool schema accepts. */
@@ -89,6 +107,41 @@ const LOG_FOOD_TOOL: Anthropic.Tool = {
     },
   },
 };
+
+/** Follow-up questions cap — a chat, not an interrogation. */
+const MAX_FOLLOWUPS = 3;
+
+/**
+ * Lets the NS ask about what the photo can't show. Available on the
+ * photo path only; the schema keeps questions short and few, and the
+ * directive makes clear that asking nothing is fine.
+ */
+const ASK_FOLLOWUPS_TOOL: Anthropic.Tool = {
+  name: 'ask_followups',
+  description:
+    "Ask the user short follow-up questions ONLY about details you genuinely could not see in the photo and that would meaningfully change the nutrition estimate — cooking method, oil or butter used, hidden ingredients (cheese, sauces, fillings), or how much of the plate they actually ate. Never ask about what is plainly visible, and ask nothing when the estimate is already solid.",
+  input_schema: {
+    type: 'object',
+    required: ['questions'] as string[],
+    properties: {
+      questions: {
+        type: 'array',
+        description: `Up to ${MAX_FOLLOWUPS} short, specific questions.`,
+        items: { type: 'string' },
+      },
+    },
+  },
+};
+
+/** Validates ask_followups input — strings only, trimmed, capped. */
+export function parseFollowUpsFromToolInput(input: unknown): string[] {
+  const questions = (input as { questions?: unknown })?.questions;
+  if (!Array.isArray(questions)) return [];
+  return questions
+    .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+    .map((q) => q.trim())
+    .slice(0, MAX_FOLLOWUPS);
+}
 
 /** Raw shape of one tool-call food before validation. */
 interface RawFood {
@@ -151,15 +204,19 @@ function extractResult(response: Anthropic.Message): FoodLoggingResult {
     .map((b) => b.text)
     .join('')
     .trim();
-  // Match the log_food block by name — with two tools aboard, "first
+  // Match tool blocks by name — with several tools aboard, "first
   // tool_use" is no longer guaranteed to be the food log.
   const toolUse = response.content.find(
     (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'log_food',
+  );
+  const followUpsUse = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'ask_followups',
   );
   return {
     reply,
     foods: toolUse ? parseFoodsFromToolInput(toolUse.input) : [],
     suggestedReplies: extractSuggestedReplies(response),
+    followUps: followUpsUse ? parseFollowUpsFromToolInput(followUpsUse.input) : [],
   };
 }
 
@@ -202,7 +259,38 @@ export async function getCharacterReplyWithFoodLog(
 }
 
 /** The directive attached to a plate photo. */
-const PHOTO_DIRECTIVE = `[The user is showing you a photo of food they're eating. Look at the plate, identify each distinct food you can actually see, and log it via the log_food tool with honest per-serving estimates. Also reply briefly in your own voice — react to the meal like you would in person. If the photo isn't food or is too unclear to judge, say so plainly and log nothing.]`;
+const PHOTO_DIRECTIVE = `[The user is showing you a photo of food they're eating. Look at the plate, identify each distinct food you can actually see, and log it via the log_food tool with honest per-serving estimates. Also reply briefly in your own voice — react to the meal like you would in person. If the photo isn't food or is too unclear to judge, say so plainly and log nothing. If something you can't see would meaningfully change the numbers — how it was cooked, oil or butter, hidden cheese/sauce/fillings, how much of it they'll actually eat — ask via the ask_followups tool. Answering is optional for the user, so your logged estimate must already be your honest best guess without the answers.]`;
+
+/** The directive for a refinement turn, after the user answered. */
+const REFINE_DIRECTIVE = `[The user answered some of your questions about the same plate — their answers are below. Rework your estimate with what you now know and call log_food again with the COMPLETE corrected list: it fully replaces what you logged before, so include every food on the plate, updated. Reply in one or two sentences in your own voice about what changed (or that nothing did). Only use ask_followups again if something still unseen would genuinely change the numbers.]`;
+
+/**
+ * Renders one round's logged foods as plain text for the rebuilt
+ * conversation — keeps the assistant turns free of tool_use blocks (no
+ * tool_result pairing needed) while the model still sees its own
+ * previous numbers.
+ */
+function describeFoods(foods: ParsedFood[]): string {
+  if (foods.length === 0) return '(logged nothing)';
+  return foods
+    .map((f) => {
+      const macros = [
+        f.item.proteinG !== undefined ? `protein ${f.item.proteinG} g` : null,
+        f.item.carbsG !== undefined ? `carbs ${f.item.carbsG} g` : null,
+        f.item.fatsG !== undefined ? `fat ${f.item.fatsG} g` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      const per = f.item.servingDescription ?? 'serving';
+      return `- ${f.item.name}: ${f.item.caloriesPerServing} kcal per ${per}${macros ? ` (${macros})` : ''}, servings: ${f.servings}`;
+    })
+    .join('\n');
+}
+
+/** One round's Q&A as a plain user-turn payload. */
+function describeAnswers(answers: PhotoExchange['answers']): string {
+  return answers.map((a) => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n');
+}
 
 /**
  * Photo logging: the NS looks at the plate. Image goes in as a base64
@@ -231,8 +319,68 @@ export async function getFoodFromPhoto(
     model: MODEL,
     max_tokens: 1024,
     system: buildSystem(characterId, userName),
-    tools: [LOG_FOOD_TOOL],
+    tools: [LOG_FOOD_TOOL, ASK_FOLLOWUPS_TOOL],
     messages: [{ role: 'user', content }],
+  });
+  const result = extractResult(response);
+  if (!result.reply && result.foods.length === 0) {
+    throw new Error('Empty response from model');
+  }
+  return result;
+}
+
+/**
+ * Builds the message list for a refinement turn: the original image +
+ * directive, then each completed round as plain text (assistant: reply
+ * + logged list; user: refine directive + answers). The last exchange
+ * must carry the newly-given answers. Exported for tests.
+ */
+export function buildRefineMessages(
+  base64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
+  exchanges: PhotoExchange[],
+): Anthropic.MessageParam[] {
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+        { type: 'text', text: PHOTO_DIRECTIVE },
+      ],
+    },
+  ];
+  for (const exchange of exchanges) {
+    messages.push({
+      role: 'assistant',
+      content: `${exchange.reply}\n\nLogged:\n${describeFoods(exchange.foods)}`,
+    });
+    messages.push({
+      role: 'user',
+      content: `${REFINE_DIRECTIVE}\n\n${describeAnswers(exchange.answers)}`,
+    });
+  }
+  return messages;
+}
+
+/**
+ * Refinement: the NS reconsiders the same plate with the user's answers
+ * to its follow-up questions. `exchanges` is every completed round so
+ * far (oldest first), each with the answers the user gave; the returned
+ * foods fully REPLACE the previous round's list.
+ */
+export async function refineFoodFromPhoto(
+  characterId: CharacterId,
+  userName: string,
+  base64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
+  exchanges: PhotoExchange[],
+): Promise<FoodLoggingResult> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: buildSystem(characterId, userName),
+    tools: [LOG_FOOD_TOOL, ASK_FOLLOWUPS_TOOL],
+    messages: buildRefineMessages(base64, mediaType, exchanges),
   });
   const result = extractResult(response);
   if (!result.reply && result.foods.length === 0) {
