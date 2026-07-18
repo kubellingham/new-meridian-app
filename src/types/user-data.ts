@@ -343,6 +343,19 @@ export interface SharedUserData {
    * latest entry.
    */
   weightLog: WeightEntry[];
+  /**
+   * The user's fixes to scanned products, keyed by barcode — set when
+   * they edit a database item's values (or add one the database didn't
+   * know) so the next scan of the same product uses THEIR numbers.
+   * Capped in the store; `savedAt` decides which fall out first.
+   */
+  foodCorrections: Record<string, FoodCorrection>;
+}
+
+/** One remembered product fix. */
+export interface FoodCorrection {
+  item: FoodItem;
+  savedAt: number;
 }
 
 /** Default value for a brand-new account — every category present but empty. */
@@ -356,4 +369,5 @@ export const EMPTY_SHARED_USER_DATA: SharedUserData = {
   events: [],
   foodLog: [],
   weightLog: [],
+  foodCorrections: {},
 };

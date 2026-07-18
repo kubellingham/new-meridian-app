@@ -34,7 +34,7 @@ function buzz() {
 type ScanStatus =
   | { kind: 'scanning' }
   | { kind: 'looking-up'; barcode: string }
-  | { kind: 'found'; item: FoodItem }
+  | { kind: 'found'; item: FoodItem; corrected?: boolean }
   | { kind: 'not-found'; barcode: string }
   | { kind: 'error'; message: string };
 
@@ -49,6 +49,8 @@ type ScanStatus =
 export default function FoodScanScreen() {
   const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
   const logFood = useUserDataStore((s) => s.logFood);
+  const foodCorrections = useUserDataStore((s) => s.foodCorrections);
+  const saveFoodCorrection = useUserDataStore((s) => s.saveFoodCorrection);
   const [permission, requestPermission] = useCameraPermissions();
 
   const [status, setStatus] = useState<ScanStatus>({ kind: 'scanning' });
@@ -62,6 +64,13 @@ export default function FoodScanScreen() {
     if (busyRef.current) return;
     busyRef.current = true;
     buzz(); // the phone reacts the instant the code is seen
+    // The user's own fix for this product outranks the database — and
+    // covers products the database doesn't know at all.
+    const correction = (foodCorrections ?? {})[barcode];
+    if (correction) {
+      setStatus({ kind: 'found', item: correction.item, corrected: true });
+      return;
+    }
     setStatus({ kind: 'looking-up', barcode });
     try {
       const item = await lookupBarcode(barcode);
@@ -122,10 +131,16 @@ export default function FoodScanScreen() {
 
           {status.kind === 'found' ? (
             <>
+              {status.corrected && (
+                <AppText variant="caption" color={colors.muted} testID="scan-corrected-note">
+                  Your saved version of this product — edit below to change it.
+                </AppText>
+              )}
               <FoodConfirmList
                 foods={[{ item: status.item, servings: 1 }]}
                 defaultMeal={meal}
                 onConfirm={handleConfirm}
+                onCorrection={saveFoodCorrection}
               />
               <Button
                 label="Scan another instead"
@@ -152,7 +167,12 @@ export default function FoodScanScreen() {
                 label="Add manually"
                 variant="secondary"
                 onPress={() =>
-                  router.replace({ pathname: '/food/manual', params: { meal } })
+                  router.replace({
+                    pathname: '/food/manual',
+                    // Carrying the barcode lets manual entry remember the
+                    // product, so this scan never dead-ends again.
+                    params: { meal, barcode: status.barcode },
+                  })
                 }
                 testID="scan-to-manual"
               />

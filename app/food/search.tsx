@@ -40,6 +40,7 @@ export default function FoodSearchScreen() {
   const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
   const logFood = useUserDataStore((s) => s.logFood);
   const foodLog = useUserDataStore((s) => s.foodLog);
+  const saveFoodCorrection = useUserDataStore((s) => s.saveFoodCorrection);
 
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -143,6 +144,7 @@ export default function FoodSearchScreen() {
               foods={[{ item: picked, servings: pickedServings }]}
               defaultMeal={asMealSlot(mealParam)}
               onConfirm={handleConfirm}
+              onCorrection={saveFoodCorrection}
             />
           ) : results !== null ? (
             results.length === 0 ? (

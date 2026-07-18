@@ -303,6 +303,64 @@ describe('weight log', () => {
   });
 });
 
+describe('food corrections', () => {
+  beforeEach(() => {
+    useUserDataStore.getState().reset();
+  });
+
+  const dew = {
+    name: 'Mountain Dew',
+    servingDescription: '200 ml',
+    servingUnit: 'ml' as const,
+    servingQuantity: 200,
+    caloriesPerServing: 88,
+    barcode: '012000001291',
+  };
+
+  it('saves keyed by barcode and overwrites on re-save', () => {
+    useUserDataStore.getState().saveFoodCorrection(dew);
+    useUserDataStore.getState().saveFoodCorrection({ ...dew, caloriesPerServing: 90 });
+    const s = useUserDataStore.getState();
+    expect(Object.keys(s.foodCorrections)).toEqual(['012000001291']);
+    expect(s.foodCorrections['012000001291'].item.caloriesPerServing).toBe(90);
+    expect(s.foodCorrections['012000001291'].savedAt).toBeGreaterThan(0);
+  });
+
+  it('ignores items without a barcode', () => {
+    useUserDataStore.getState().saveFoodCorrection({ name: 'Plate', caloriesPerServing: 500 });
+    expect(useUserDataStore.getState().foodCorrections).toEqual({});
+  });
+
+  it('caps at 200, dropping the oldest saves first', () => {
+    const seeded: Record<string, { item: typeof dew; savedAt: number }> = {};
+    for (let i = 0; i < 200; i += 1) {
+      seeded[`50000000000${i}`] = { item: { ...dew, barcode: `50000000000${i}` }, savedAt: i };
+    }
+    useUserDataStore.setState({ foodCorrections: seeded });
+    useUserDataStore.getState().saveFoodCorrection(dew);
+    const s = useUserDataStore.getState();
+    expect(Object.keys(s.foodCorrections)).toHaveLength(200);
+    expect(s.foodCorrections['500000000000']).toBeUndefined(); // savedAt 0 dropped
+    expect(s.foodCorrections['012000001291']).toBeDefined();
+  });
+
+  it('reset clears corrections', () => {
+    useUserDataStore.getState().saveFoodCorrection(dew);
+    useUserDataStore.getState().reset();
+    expect(useUserDataStore.getState().foodCorrections).toEqual({});
+  });
+
+  // A v2 blob persisted before this feature has no foodCorrections key;
+  // no version bump happened, so the action must tolerate undefined.
+  it('works when hydration left foodCorrections undefined', () => {
+    useUserDataStore.setState({ foodCorrections: undefined as never });
+    useUserDataStore.getState().saveFoodCorrection(dew);
+    expect(
+      useUserDataStore.getState().foodCorrections['012000001291'].item.name,
+    ).toBe('Mountain Dew');
+  });
+});
+
 describe('user-data version 2 migration (weightLog)', () => {
   const migrate = useUserDataStore.persist.getOptions().migrate!;
 

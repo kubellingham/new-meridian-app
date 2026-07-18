@@ -14,7 +14,7 @@ import {
   type QuantityMode,
 } from '@/src/services/food-quantity';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
-import type { MealSlot } from '@/src/types/user-data';
+import type { FoodItem, MealSlot } from '@/src/types/user-data';
 
 type FoodConfirmListProps = {
   /** The foods as parsed/estimated — the user gets the last word. */
@@ -23,6 +23,13 @@ type FoodConfirmListProps = {
   defaultMeal: MealSlot;
   /** Called with the reviewed foods when the user confirms. */
   onConfirm: (foods: ParsedFood[]) => void;
+  /**
+   * Called (before onConfirm's foods land) for each confirmed item whose
+   * nutrition the user changed from what the database said — the hook
+   * for remembering per-barcode fixes. Only fires for items that carry
+   * a barcode.
+   */
+  onCorrection?: (item: FoodItem) => void;
   confirmLabel?: string;
 };
 
@@ -34,8 +41,34 @@ type DraftFood = {
   mode: QuantityMode;
   quantity: string;
   meal: MealSlot;
+  /** "Something's not right" panel open? */
+  expanded: boolean;
+  protein: string;
+  carbs: string;
+  fats: string;
+  servingDesc: string;
   base: ParsedFood;
 };
+
+/** '' → undefined, junk → undefined, sane number → number. */
+function optNum(v: string): number | undefined {
+  const trimmed = v.trim();
+  if (!trimmed) return undefined;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/** Did the review change the item's nutritional identity? */
+function itemEdited(edited: FoodItem, original: FoodItem): boolean {
+  return (
+    edited.name !== original.name ||
+    edited.caloriesPerServing !== original.caloriesPerServing ||
+    edited.proteinG !== original.proteinG ||
+    edited.carbsG !== original.carbsG ||
+    edited.fatsG !== original.fatsG ||
+    edited.servingDescription !== original.servingDescription
+  );
+}
 
 /**
  * Review-before-log list used by the photo, barcode, and search flows.
@@ -48,6 +81,7 @@ export function FoodConfirmList({
   foods,
   defaultMeal,
   onConfirm,
+  onCorrection,
   confirmLabel = 'Log it',
 }: FoodConfirmListProps) {
   const [drafts, setDrafts] = useState<DraftFood[]>([]);
@@ -62,6 +96,11 @@ export function FoodConfirmList({
           mode,
           quantity: String(defaultValue(mode, f.servings, f.item)),
           meal: f.meal ?? defaultMeal,
+          expanded: false,
+          protein: f.item.proteinG !== undefined ? String(f.item.proteinG) : '',
+          carbs: f.item.carbsG !== undefined ? String(f.item.carbsG) : '',
+          fats: f.item.fatsG !== undefined ? String(f.item.fatsG) : '',
+          servingDesc: f.item.servingDescription ?? '',
           base: f,
         };
       }),
@@ -93,15 +132,17 @@ export function FoodConfirmList({
       const calories = Number(d.calories);
       if (!d.name.trim() || !Number.isFinite(calories) || calories <= 0) continue;
       const servings = toServings(d.mode, Number(d.quantity), d.base.item) ?? d.base.servings;
-      reviewed.push({
-        item: {
-          ...d.base.item,
-          name: d.name.trim(),
-          caloriesPerServing: calories,
-        },
-        servings,
-        meal: d.meal,
-      });
+      const item: FoodItem = {
+        ...d.base.item,
+        name: d.name.trim(),
+        caloriesPerServing: calories,
+        proteinG: optNum(d.protein),
+        carbsG: optNum(d.carbs),
+        fatsG: optNum(d.fats),
+        servingDescription: d.servingDesc.trim() || d.base.item.servingDescription,
+      };
+      if (item.barcode && itemEdited(item, d.base.item)) onCorrection?.(item);
+      reviewed.push({ item, servings, meal: d.meal });
     }
     if (reviewed.length > 0) onConfirm(reviewed);
   }
@@ -185,6 +226,64 @@ export function FoodConfirmList({
               )
             )}
 
+            <Pressable
+              onPress={() => patch(i, { expanded: !draft.expanded })}
+              accessibilityRole="button"
+              style={styles.editToggle}
+              testID={`confirm-edit-toggle-${i}`}
+            >
+              <AppText variant="caption" color={colors.primary}>
+                {draft.expanded ? 'Hide the details' : 'Something’s not right? Edit the details'}
+              </AppText>
+            </Pressable>
+
+            {draft.expanded && (
+              <View style={styles.editPanel}>
+                <View style={styles.numbersRow}>
+                  {(
+                    [
+                      ['protein', 'protein g', draft.protein],
+                      ['carbs', 'carbs g', draft.carbs],
+                      ['fats', 'fat g', draft.fats],
+                    ] as const
+                  ).map(([key, label, value]) => (
+                    <View key={key} style={styles.numberField}>
+                      <AppText variant="caption" color={colors.muted}>
+                        {label}
+                      </AppText>
+                      <TextInput
+                        value={value}
+                        onChangeText={(v) => patch(i, { [key]: v })}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        testID={`confirm-${key}-${i}`}
+                      />
+                    </View>
+                  ))}
+                </View>
+                {draft.base.item.servingUnit === undefined && (
+                  <View style={styles.numberField}>
+                    <AppText variant="caption" color={colors.muted}>
+                      serving size
+                    </AppText>
+                    <TextInput
+                      value={draft.servingDesc}
+                      onChangeText={(v) => patch(i, { servingDesc: v })}
+                      placeholder="e.g. 1 bar, 1 plate"
+                      placeholderTextColor={colors.muted}
+                      style={styles.input}
+                      testID={`confirm-servingdesc-${i}`}
+                    />
+                  </View>
+                )}
+                {!!draft.base.item.barcode && (
+                  <AppText variant="caption" color={colors.muted}>
+                    Your fixes are saved for this barcode — next scan uses them.
+                  </AppText>
+                )}
+              </View>
+            )}
+
             <View style={styles.mealRow}>
               {MEAL_SLOTS.map((slot) => (
                 <Pressable
@@ -253,6 +352,12 @@ const styles = StyleSheet.create({
   },
   fixedAmount: {
     justifyContent: 'center',
+  },
+  editToggle: {
+    alignSelf: 'flex-start',
+  },
+  editPanel: {
+    gap: spacing.sm,
   },
   mealRow: {
     flexDirection: 'row',

@@ -19,17 +19,23 @@ function asMealSlot(value: string | undefined): MealSlot {
 /**
  * Manual food entry — the type-the-numbers path. Name and calories are
  * the only requirements; macros are welcome but optional, matching how
- * real people actually log.
+ * real people actually log. Arriving here from a failed scan carries the
+ * barcode, so the entry is remembered and that product scans forever.
  */
 export default function ManualFoodScreen() {
-  const { meal: mealParam } = useLocalSearchParams<{ meal?: string }>();
+  const { meal: mealParam, barcode } = useLocalSearchParams<{
+    meal?: string;
+    barcode?: string;
+  }>();
   const logFood = useUserDataStore((s) => s.logFood);
+  const saveFoodCorrection = useUserDataStore((s) => s.saveFoodCorrection);
 
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fats, setFats] = useState('');
+  const [servingDesc, setServingDesc] = useState('');
   const [servings, setServings] = useState('1');
   const [meal, setMeal] = useState<MealSlot>(asMealSlot(mealParam));
 
@@ -47,6 +53,18 @@ export default function ManualFoodScreen() {
   function handleSave() {
     if (!canSave) return;
     const servingsNum = Number(servings);
+    const item = {
+      name: name.trim(),
+      servingDescription: servingDesc.trim() || undefined,
+      caloriesPerServing: caloriesNum,
+      proteinG: optional(protein),
+      carbsG: optional(carbs),
+      fatsG: optional(fats),
+      barcode: barcode || undefined,
+    };
+    // A failed scan handed us its barcode — remember this entry so the
+    // product is found next time instead of dead-ending again.
+    if (item.barcode) saveFoodCorrection(item);
     logFood({
       id: makeFoodLogId(),
       loggedAt: Date.now(),
@@ -54,13 +72,7 @@ export default function ManualFoodScreen() {
       meal,
       source: 'manual',
       servings: Number.isFinite(servingsNum) && servingsNum > 0 ? servingsNum : 1,
-      item: {
-        name: name.trim(),
-        caloriesPerServing: caloriesNum,
-        proteinG: optional(protein),
-        carbsG: optional(carbs),
-        fatsG: optional(fats),
-      },
+      item,
     });
     router.back();
   }
@@ -155,6 +167,18 @@ export default function ManualFoodScreen() {
               />
             </View>
           </View>
+
+          <AppText variant="label" style={styles.fieldLabel}>
+            Serving size (optional)
+          </AppText>
+          <TextInput
+            value={servingDesc}
+            onChangeText={setServingDesc}
+            placeholder="e.g. 1 plate, 330 ml can"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            testID="manual-servingdesc"
+          />
 
           <AppText variant="label" style={styles.fieldLabel}>
             Servings

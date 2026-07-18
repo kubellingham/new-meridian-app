@@ -8,6 +8,7 @@ import {
   EMPTY_SHARED_USER_DATA,
   type DailySignals,
   type ExerciseLog,
+  type FoodItem,
   type LoggedFood,
   type NutritionState,
   type PatternFlag,
@@ -31,6 +32,9 @@ const FOOD_LOG_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // ~30 days
 
 /** Weigh-in history cap — one entry per day, so ~13 months of daily logs. */
 const WEIGHT_LOG_MAX = 400;
+
+/** Remembered product-fix cap — oldest saves fall out first. */
+const FOOD_CORRECTIONS_MAX = 200;
 
 /** How many entries count toward the given local date. */
 function countForDate(log: LoggedFood[], forDate: string): number {
@@ -119,6 +123,12 @@ interface UserDataState extends SharedUserData {
   logFood: (entry: LoggedFood) => void;
   updateFood: (id: string, patch: Partial<LoggedFood>) => void;
   removeFood: (id: string) => void;
+  /**
+   * Remembers the user's fix to a scanned product (keyed by its
+   * barcode) so future scans surface their values instead of the
+   * database's. No-op for items without a barcode.
+   */
+  saveFoodCorrection: (item: FoodItem) => void;
   /** Adjusts today's water by ±ml, clamped at zero. */
   addWater: (ml: number) => void;
   /**
@@ -303,6 +313,22 @@ export const useUserDataStore = create<UserDataState>()(
                 }
               : state.dailySignals,
           };
+        }),
+      saveFoodCorrection: (item) =>
+        set((state) => {
+          if (!item.barcode) return state;
+          const corrections = {
+            ...(state.foodCorrections ?? {}),
+            [item.barcode]: { item, savedAt: Date.now() },
+          };
+          const keys = Object.keys(corrections);
+          if (keys.length > FOOD_CORRECTIONS_MAX) {
+            keys
+              .sort((a, b) => corrections[a].savedAt - corrections[b].savedAt)
+              .slice(0, keys.length - FOOD_CORRECTIONS_MAX)
+              .forEach((k) => delete corrections[k]);
+          }
+          return { foodCorrections: corrections };
         }),
       addWater: (ml) =>
         set((state) => ({
