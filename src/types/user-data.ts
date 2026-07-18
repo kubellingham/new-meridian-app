@@ -200,11 +200,19 @@ export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 /** How an entry got into the log — shapes trust and edit affordances. */
 export type FoodSource = 'manual' | 'chat' | 'photo' | 'barcode' | 'database';
 
+/** The measurable unit a food's serving is expressed in. */
+export type ServingUnit = 'g' | 'ml';
+
 /** The nutritional identity of one food, per serving. */
 export interface FoodItem {
   name: string;
   brand?: string;
   servingDescription?: string; // "1 plate", "100 g", "1 medium"
+  /** Unit + sizes let the portion UI offer honest choices (a drink is
+   *  drunk in ml, not grams). All optional — AI/manual foods have none. */
+  servingUnit?: ServingUnit;
+  servingQuantity?: number; // one serving, in servingUnit (e.g. 200 ml)
+  packageQuantity?: number; // the whole package, in servingUnit (e.g. 500 ml)
   caloriesPerServing: number;
   proteinG?: number;
   carbsG?: number;

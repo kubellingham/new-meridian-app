@@ -116,6 +116,83 @@ describe('mapProduct — serving-aware path', () => {
     })!;
     expect(item.servingDescription).toBe('100 g');
     expect(item.caloriesPerServing).toBe(360);
+    expect(item.servingUnit).toBe('g');
+    expect(item.servingQuantity).toBe(100);
+  });
+});
+
+describe('mapProduct — units and package size', () => {
+  // The Mountain Dew case: a drink is drunk in ml, not weighed in grams.
+  it('captures ml units and package size for a drink with serving data', () => {
+    const item = mapProduct({
+      product_name: 'Mountain Dew',
+      brands: 'PepsiCo',
+      code: '012000001291',
+      serving_size: '200 ml',
+      serving_quantity: 200,
+      serving_quantity_unit: 'ml',
+      product_quantity: '500',
+      product_quantity_unit: 'ml',
+      nutriments: { 'energy-kcal_100g': 44, 'energy-kcal_serving': 88, sugars_100g: 11 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingQuantity).toBe(200);
+    expect(item.packageQuantity).toBe(500);
+    expect(item.caloriesPerServing).toBe(88);
+    expect(item.sugarG).toBe(22); // scaled per-100ml → per-200ml serving
+  });
+
+  it('labels the per-100 basis in ml for drinks without serving data', () => {
+    const item = mapProduct({
+      product_name: 'Sparkling water',
+      product_quantity: 330,
+      product_quantity_unit: 'ml',
+      nutriments: { 'energy-kcal_100g': 0 },
+    })!;
+    expect(item.servingDescription).toBe('100 ml');
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingQuantity).toBe(100);
+    expect(item.packageQuantity).toBe(330);
+  });
+
+  it('normalizes cl and l to millilitres', () => {
+    const item = mapProduct({
+      product_name: 'Cola',
+      serving_quantity: 33,
+      serving_quantity_unit: 'cl',
+      product_quantity: 1,
+      product_quantity_unit: 'l',
+      nutriments: { 'energy-kcal_serving': 139 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingQuantity).toBe(330);
+    expect(item.packageQuantity).toBe(1000);
+    expect(item.servingDescription).toBe('330 ml');
+  });
+
+  it('drops the package when its unit disagrees with the serving unit', () => {
+    const item = mapProduct({
+      product_name: 'Odd data',
+      serving_quantity: 30,
+      serving_quantity_unit: 'g',
+      product_quantity: 500,
+      product_quantity_unit: 'ml',
+      nutriments: { 'energy-kcal_serving': 120 },
+    })!;
+    expect(item.servingUnit).toBe('g');
+    expect(item.packageQuantity).toBeUndefined();
+  });
+
+  it('ignores junk units rather than guessing', () => {
+    const item = mapProduct({
+      product_name: 'Weird row',
+      serving_quantity: 2,
+      serving_quantity_unit: 'portions',
+      nutriments: { 'energy-kcal_100g': 200 },
+    })!;
+    // Unusable serving measure → plain per-100g behavior.
+    expect(item.servingDescription).toBe('100 g');
+    expect(item.servingQuantity).toBe(100);
   });
 });
 

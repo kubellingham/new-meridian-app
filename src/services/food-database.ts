@@ -10,7 +10,7 @@
  * live calls are part of on-device acceptance.
  */
 
-import type { FoodItem } from '@/src/types/user-data';
+import type { FoodItem, ServingUnit } from '@/src/types/user-data';
 
 const SEARCH_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
 const PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
@@ -31,7 +31,10 @@ interface OffProduct {
   brands?: string;
   code?: string;
   serving_size?: string; // human label, e.g. "2 tbsp (32 g)"
-  serving_quantity?: number | string; // grams in one serving
+  serving_quantity?: number | string; // one serving, in serving_quantity_unit
+  serving_quantity_unit?: string; // "g" | "ml" | occasionally junk
+  product_quantity?: number | string; // whole package, in product_quantity_unit
+  product_quantity_unit?: string;
   nutriments?: {
     'energy-kcal_100g'?: number;
     proteins_100g?: number;
@@ -62,6 +65,34 @@ function round1(v: number | undefined): number | undefined {
 }
 
 /**
+ * Normalizes an OFF quantity + unit string to grams or millilitres.
+ * OFF data uses g/kg for solids and ml/cl/l for drinks; anything else
+ * (or junk units) comes back undefined rather than guessed.
+ */
+function toBaseUnit(
+  value: number | undefined,
+  unitRaw: string | undefined,
+): { unit: ServingUnit; value: number } | undefined {
+  if (value === undefined || value <= 0) return undefined;
+  switch (unitRaw?.trim().toLowerCase()) {
+    case undefined:
+    case '':
+    case 'g':
+      return { unit: 'g', value };
+    case 'kg':
+      return { unit: 'g', value: value * 1000 };
+    case 'ml':
+      return { unit: 'ml', value };
+    case 'cl':
+      return { unit: 'ml', value: value * 10 };
+    case 'l':
+      return { unit: 'ml', value: value * 1000 };
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Maps one OFF product to a FoodItem, or null when it's unusable (no
  * name or no calorie figure — junk entries are common in open data).
  *
@@ -81,16 +112,28 @@ export function mapProduct(product: OffProduct): FoodItem | null {
 
   const brand = product.brands?.split(',')[0]?.trim() || undefined;
   const servingKcal = sane(n['energy-kcal_serving']);
-  const servingQty = sane(product.serving_quantity);
   const servingLabel = product.serving_size?.trim();
+
+  // Structured measures. A missing serving unit means grams (OFF's
+  // historic default); the package is only kept when its unit agrees
+  // with the serving's, so "200 ml serving of a 500 g package" nonsense
+  // can't reach the portion UI.
+  const serving = toBaseUnit(sane(product.serving_quantity), product.serving_quantity_unit);
+  const pkg = toBaseUnit(
+    sane(product.product_quantity),
+    product.product_quantity_unit ?? product.serving_quantity_unit,
+  );
+  const unit = serving?.unit ?? pkg?.unit;
+  const packageQuantity = pkg && pkg.unit === (unit ?? 'g') ? pkg.value : undefined;
 
   // Per-serving path — the label's own numbers.
   if (servingKcal !== undefined) {
     // Prefer the explicit per-serving field; scale from per-100g when a
-    // field is missing but the serving's gram weight is known.
+    // field is missing but the serving's size is known (the per-100
+    // basis shares the product's unit, so g and ml both divide by 100).
     const scaled = (per100: number | undefined): number | undefined =>
-      per100 !== undefined && servingQty !== undefined
-        ? (per100 * servingQty) / 100
+      per100 !== undefined && serving !== undefined
+        ? (per100 * serving.value) / 100
         : undefined;
     const pick = (perServing: number | undefined, per100: number | undefined) =>
       round1(perServing !== undefined ? perServing : scaled(per100));
@@ -100,7 +143,11 @@ export function mapProduct(product: OffProduct): FoodItem | null {
       name,
       brand,
       servingDescription:
-        servingLabel || (servingQty !== undefined ? `${servingQty} g` : '1 serving'),
+        servingLabel ||
+        (serving !== undefined ? `${serving.value} ${serving.unit}` : '1 serving'),
+      servingUnit: unit,
+      servingQuantity: serving?.value,
+      packageQuantity,
       caloriesPerServing: Math.round(servingKcal),
       proteinG: pick(sane(n.proteins_serving), sane(n.proteins_100g)),
       carbsG: pick(sane(n.carbohydrates_serving), sane(n.carbohydrates_100g)),
@@ -112,14 +159,20 @@ export function mapProduct(product: OffProduct): FoodItem | null {
     };
   }
 
-  // Per-100g path — unchanged behavior for products without serving data.
+  // Per-100 path — products without per-serving data. The nutriment
+  // basis is per 100 g for solids and per 100 ml for drinks (OFF keys
+  // both as _100g), so the "serving" here is 100 of the product's unit.
   const calories = sane(n['energy-kcal_100g']);
   if (calories === undefined) return null;
+  const per100Unit = unit ?? 'g';
   const sodium100 = sane(n.sodium_100g);
   return {
     name,
     brand,
-    servingDescription: '100 g',
+    servingDescription: `100 ${per100Unit}`,
+    servingUnit: per100Unit,
+    servingQuantity: 100,
+    packageQuantity,
     caloriesPerServing: Math.round(calories),
     proteinG: round1(sane(n.proteins_100g)),
     carbsG: round1(sane(n.carbohydrates_100g)),
@@ -137,7 +190,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
   if (!trimmed) return [];
   const url =
     `${SEARCH_URL}?search_terms=${encodeURIComponent(trimmed)}` +
-    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,serving_size,serving_quantity,nutriments';
+    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,nutriments';
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -155,7 +208,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
 
 /** Barcode lookup — one product or null when unknown. */
 export async function lookupBarcode(barcode: string): Promise<FoodItem | null> {
-  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,serving_size,serving_quantity,nutriments`;
+  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,nutriments`;
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
