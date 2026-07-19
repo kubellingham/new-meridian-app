@@ -4,7 +4,7 @@
  * the network paths are exercised on device.
  */
 
-import { lookupBarcode, mapProduct, searchFoods } from '../food-database';
+import { lookupBarcode, mapProduct, parseMeasureText, searchFoods } from '../food-database';
 
 const REAL_ISH_PRODUCT = {
   product_name: 'Peanut Butter',
@@ -181,6 +181,69 @@ describe('mapProduct — units and package size', () => {
     })!;
     expect(item.servingUnit).toBe('g');
     expect(item.packageQuantity).toBeUndefined();
+  });
+
+  // The real-device Mountain Dew case: per-100 nutriments only, no unit
+  // fields anywhere — the category still says it's drunk, not weighed.
+  it('infers ml from a beverage category when no unit fields exist', () => {
+    const item = mapProduct({
+      product_name: 'Mountain Dew',
+      code: '8901491101837',
+      categories_tags: ['en:beverages', 'en:carbonated-drinks', 'en:sodas'],
+      nutriments: { 'energy-kcal_100g': 49, carbohydrates_100g: 12.3 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingDescription).toBe('100 ml');
+    expect(item.servingQuantity).toBe(100);
+  });
+
+  it('reads the serving size from label text when unit fields are missing', () => {
+    const item = mapProduct({
+      product_name: 'Dew with label text',
+      serving_size: '200 ml',
+      categories_tags: ['en:beverages'],
+      nutriments: { 'energy-kcal_100g': 49, 'energy-kcal_serving': 98 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingQuantity).toBe(200);
+    expect(item.servingDescription).toBe('200 ml');
+    expect(item.caloriesPerServing).toBe(98);
+  });
+
+  it('sums same-unit package text ("1 l + 250 ml" promo bottle → 1250 ml)', () => {
+    const item = mapProduct({
+      product_name: 'Promo bottle',
+      quantity: '1 l + 250 ml',
+      categories_tags: ['en:beverages'],
+      nutriments: { 'energy-kcal_100g': 49 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.packageQuantity).toBe(1250);
+  });
+
+  it('interprets a bare serving_quantity in the inferred unit', () => {
+    const item = mapProduct({
+      product_name: 'Juice',
+      serving_quantity: 250, // number, no unit field at all
+      categories_tags: ['en:fruit-juices'],
+      nutriments: { 'energy-kcal_serving': 110 },
+    })!;
+    expect(item.servingUnit).toBe('ml');
+    expect(item.servingQuantity).toBe(250);
+    expect(item.servingDescription).toBe('250 ml');
+  });
+
+  it('refuses mixed-unit text and keeps solids on grams', () => {
+    expect(parseMeasureText('100 g in 250 ml water')).toBeUndefined();
+    expect(parseMeasureText('two scoops')).toBeUndefined();
+    expect(parseMeasureText('0,33 l')).toEqual({ unit: 'ml', value: 330 });
+    const solid = mapProduct({
+      product_name: 'Biscuits',
+      categories_tags: ['en:snacks', 'en:biscuits'],
+      nutriments: { 'energy-kcal_100g': 480 },
+    })!;
+    expect(solid.servingUnit).toBe('g');
+    expect(solid.servingDescription).toBe('100 g');
   });
 
   it('ignores junk units rather than guessing', () => {

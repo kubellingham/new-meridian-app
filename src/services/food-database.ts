@@ -35,6 +35,8 @@ interface OffProduct {
   serving_quantity_unit?: string; // "g" | "ml" | occasionally junk
   product_quantity?: number | string; // whole package, in product_quantity_unit
   product_quantity_unit?: string;
+  quantity?: string; // package text, e.g. "500 ml", "1 l + 250 ml"
+  categories_tags?: string[]; // e.g. ["en:beverages", "en:sodas"]
   nutriments?: {
     'energy-kcal_100g'?: number;
     proteins_100g?: number;
@@ -66,8 +68,10 @@ function round1(v: number | undefined): number | undefined {
 
 /**
  * Normalizes an OFF quantity + unit string to grams or millilitres.
- * OFF data uses g/kg for solids and ml/cl/l for drinks; anything else
- * (or junk units) comes back undefined rather than guessed.
+ * OFF data uses g/kg for solids and ml/cl/l for drinks; a missing or
+ * junk unit comes back undefined — no claim — so the caller's fuller
+ * inference chain (label text, category) gets its say instead of a
+ * silent grams default.
  */
 function toBaseUnit(
   value: number | undefined,
@@ -75,8 +79,6 @@ function toBaseUnit(
 ): { unit: ServingUnit; value: number } | undefined {
   if (value === undefined || value <= 0) return undefined;
   switch (unitRaw?.trim().toLowerCase()) {
-    case undefined:
-    case '':
     case 'g':
       return { unit: 'g', value };
     case 'kg':
@@ -90,6 +92,29 @@ function toBaseUnit(
     default:
       return undefined;
   }
+}
+
+/**
+ * Pulls a measure out of free text — "200 ml", "2 tbsp (32 g)",
+ * "1 l + 250 ml" (promo bottles; same-unit tokens are summed → 1250 ml).
+ * Mixed g/ml text makes no single claim → undefined. Exported for tests.
+ */
+export function parseMeasureText(
+  text: string | undefined,
+): { unit: ServingUnit; value: number } | undefined {
+  if (!text) return undefined;
+  const tokens = [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(ml|cl|l|g|kg)\b/gi)]
+    .map((m) => toBaseUnit(Number(m[1].replace(',', '.')), m[2]))
+    .filter((t): t is { unit: ServingUnit; value: number } => t !== undefined);
+  if (tokens.length === 0) return undefined;
+  const unit = tokens[0].unit;
+  if (tokens.some((t) => t.unit !== unit)) return undefined;
+  return { unit, value: tokens.reduce((sum, t) => sum + t.value, 0) };
+}
+
+/** Does the category list say this is drunk, not eaten? */
+function isBeverage(tags: string[] | undefined): boolean {
+  return (tags ?? []).some((t) => /beverage|drink|water|juice/i.test(t));
 }
 
 /**
@@ -114,17 +139,40 @@ export function mapProduct(product: OffProduct): FoodItem | null {
   const servingKcal = sane(n['energy-kcal_serving']);
   const servingLabel = product.serving_size?.trim();
 
-  // Structured measures. A missing serving unit means grams (OFF's
-  // historic default); the package is only kept when its unit agrees
-  // with the serving's, so "200 ml serving of a 500 g package" nonsense
-  // can't reach the portion UI.
-  const serving = toBaseUnit(sane(product.serving_quantity), product.serving_quantity_unit);
-  const pkg = toBaseUnit(
-    sane(product.product_quantity),
-    product.product_quantity_unit ?? product.serving_quantity_unit,
-  );
-  const unit = serving?.unit ?? pkg?.unit;
-  const packageQuantity = pkg && pkg.unit === (unit ?? 'g') ? pkg.value : undefined;
+  // Structured measures. The unit is inferred from the strongest signal
+  // available — explicit unit fields, then label/package text, then the
+  // category (a beverage with no unit data is drunk in ml, not weighed
+  // in grams). Grams only as the true last resort.
+  const servingExplicit = toBaseUnit(sane(product.serving_quantity), product.serving_quantity_unit);
+  const servingText = parseMeasureText(product.serving_size);
+  const pkgExplicit = toBaseUnit(sane(product.product_quantity), product.product_quantity_unit);
+  const pkgText = parseMeasureText(product.quantity);
+  const unit: ServingUnit =
+    servingExplicit?.unit ??
+    servingText?.unit ??
+    pkgExplicit?.unit ??
+    pkgText?.unit ??
+    (isBeverage(product.categories_tags) ? 'ml' : 'g');
+
+  // Serving size in that unit. A bare serving_quantity (number, no unit
+  // field at all) is read in the resolved unit; a junk unit ("portions")
+  // makes the number unusable rather than guessed at.
+  const servingQtyRaw = sane(product.serving_quantity);
+  const hasServingUnitField = !!product.serving_quantity_unit?.trim();
+  const servingQty =
+    servingExplicit?.value ??
+    (!hasServingUnitField ? servingQtyRaw : undefined) ??
+    (servingText?.unit === unit ? servingText.value : undefined);
+  const serving = servingQty !== undefined ? { unit, value: servingQty } : undefined;
+
+  // Package size — same rules; kept only when it agrees with the unit,
+  // so "200 ml serving of a 500 g package" nonsense can't reach the UI.
+  const hasPkgUnitField = !!product.product_quantity_unit?.trim();
+  const pkgQty =
+    (pkgExplicit?.unit === unit ? pkgExplicit.value : undefined) ??
+    (!hasPkgUnitField ? sane(product.product_quantity) : undefined) ??
+    (pkgText?.unit === unit ? pkgText.value : undefined);
+  const packageQuantity = pkgQty;
 
   // Per-serving path — the label's own numbers.
   if (servingKcal !== undefined) {
@@ -190,7 +238,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
   if (!trimmed) return [];
   const url =
     `${SEARCH_URL}?search_terms=${encodeURIComponent(trimmed)}` +
-    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,nutriments';
+    '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,quantity,categories_tags,nutriments';
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -208,7 +256,7 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
 
 /** Barcode lookup — one product or null when unknown. */
 export async function lookupBarcode(barcode: string): Promise<FoodItem | null> {
-  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,nutriments`;
+  const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,code,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,quantity,categories_tags,nutriments`;
   let response: Response;
   try {
     response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
