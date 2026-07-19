@@ -21,7 +21,7 @@ export interface QuantityOption {
   needsValue: boolean;
 }
 
-interface Measure {
+export interface Measure {
   unit: ServingUnit;
   servingQty: number;
   packageQty?: number;
@@ -30,9 +30,10 @@ interface Measure {
 /**
  * The item's measurable identity, if it has one. Rows mapped before the
  * unit fields existed carry only the '100 g' description — honored here
- * so old recent-foods rows keep their grams input.
+ * so old recent-foods rows keep their grams input. Exported for the
+ * review editor, which lets the user fix this identity.
  */
-function measure(item: FoodItem): Measure | undefined {
+export function measure(item: FoodItem): Measure | undefined {
   if (item.servingUnit && item.servingQuantity) {
     return {
       unit: item.servingUnit,
@@ -122,4 +123,36 @@ export function toServings(mode: QuantityMode, value: number, item: FoodItem): n
 /** Label for the calories field: per-100 items name their basis. */
 export function caloriesLabel(item: FoodItem): string {
   return isPer100(item) ? `kcal / ${item.servingDescription}` : 'kcal / serving';
+}
+
+/**
+ * Per-serving nutrition re-based to a new serving size — used as the
+ * prefill when the review editor changes what "one serving" means (a
+ * per-100ml row redefined as a 200 ml serve doubles its numbers; the
+ * user then overrides with the label's truth). No basis to convert
+ * from, or no real change → values pass through untouched.
+ */
+export function rescaleNutrition(
+  item: FoodItem,
+  newQty: number,
+): Pick<FoodItem, 'caloriesPerServing' | 'proteinG' | 'carbsG' | 'fatsG'> {
+  const passthrough = {
+    caloriesPerServing: item.caloriesPerServing,
+    proteinG: item.proteinG,
+    carbsG: item.carbsG,
+    fatsG: item.fatsG,
+  };
+  const basis = measure(item)?.servingQty;
+  if (!basis || !Number.isFinite(newQty) || newQty <= 0 || newQty === basis) {
+    return passthrough;
+  }
+  const factor = newQty / basis;
+  const scale = (v: number | undefined) =>
+    v === undefined ? undefined : Math.round(v * factor * 10) / 10;
+  return {
+    caloriesPerServing: Math.round(item.caloriesPerServing * factor),
+    proteinG: scale(item.proteinG),
+    carbsG: scale(item.carbsG),
+    fatsG: scale(item.fatsG),
+  };
 }

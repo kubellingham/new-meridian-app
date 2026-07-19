@@ -10,6 +10,7 @@ import {
   defaultValue,
   isPer100,
   quantityModes,
+  rescaleNutrition,
   toServings,
 } from '../food-quantity';
 import type { FoodItem } from '@/src/types/user-data';
@@ -108,6 +109,34 @@ describe('toServings', () => {
     expect(toServings('servings', 0, PLATE)).toBeUndefined();
     expect(toServings('servings', NaN, PLATE)).toBeUndefined();
     expect(toServings('unit-amount', 100, PLATE)).toBeUndefined(); // no unit data
+  });
+});
+
+describe('rescaleNutrition', () => {
+  // The tester's bottle: per-100ml row redefined as a 200 ml serve.
+  it('re-bases per-100 nutrition to a new serving size', () => {
+    const dew100: FoodItem = {
+      name: 'Mountain Dew',
+      servingDescription: '100 ml',
+      servingUnit: 'ml',
+      servingQuantity: 100,
+      caloriesPerServing: 49,
+      carbsG: 12.3,
+    };
+    const scaled = rescaleNutrition(dew100, 200);
+    expect(scaled.caloriesPerServing).toBe(98);
+    expect(scaled.carbsG).toBe(24.6);
+    expect(scaled.proteinG).toBeUndefined(); // absent stays absent
+  });
+
+  it('passes through when nothing really changes or nothing can convert', () => {
+    expect(rescaleNutrition(DRINK, 200).caloriesPerServing).toBe(88); // same basis
+    expect(rescaleNutrition(PLATE, 200).caloriesPerServing).toBe(550); // no basis
+    expect(rescaleNutrition(DRINK, NaN).caloriesPerServing).toBe(88); // junk qty
+  });
+
+  it('scales an arbitrary per-serving basis', () => {
+    expect(rescaleNutrition(DRINK, 500).caloriesPerServing).toBe(220); // 88 × 500/200
   });
 });
 

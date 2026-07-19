@@ -9,12 +9,14 @@ import {
   caloriesLabel,
   defaultMode,
   defaultValue,
+  measure,
   quantityModes,
+  rescaleNutrition,
   toServings,
   type QuantityMode,
 } from '@/src/services/food-quantity';
 import { colors, fonts, fontSizes, radius, spacing } from '@/src/theme/theme';
-import type { FoodItem, MealSlot } from '@/src/types/user-data';
+import type { FoodItem, MealSlot, ServingUnit } from '@/src/types/user-data';
 
 type FoodConfirmListProps = {
   /** The foods as parsed/estimated — the user gets the last word. */
@@ -33,6 +35,9 @@ type FoodConfirmListProps = {
   confirmLabel?: string;
 };
 
+/** The editor's measured-in choice — g/ml, or counted in servings only. */
+type DraftUnit = ServingUnit | 'none';
+
 /** Editable working copy of one parsed food. */
 type DraftFood = {
   name: string;
@@ -47,6 +52,10 @@ type DraftFood = {
   carbs: string;
   fats: string;
   servingDesc: string;
+  /** The item's measurable identity — all user-fixable. */
+  unit: DraftUnit;
+  servingQty: string;
+  packageQty: string;
   base: ParsedFood;
 };
 
@@ -55,18 +64,67 @@ function optNum(v: string): number | undefined {
   const trimmed = v.trim();
   if (!trimmed) return undefined;
   const n = Number(trimmed);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-/** Did the review change the item's nutritional identity? */
+/**
+ * The item as the draft currently describes it — every label, measure
+ * mode, and conversion reads THIS, so a unit fix immediately reshapes
+ * the portion UI. The serving description follows a measure change
+ * ("200 ml"); otherwise the original label text is kept.
+ */
+function draftItem(d: DraftFood): FoodItem {
+  const base = d.base.item;
+  const calories = Number(d.calories);
+  const shared = {
+    ...base,
+    name: d.name.trim() || base.name,
+    caloriesPerServing:
+      Number.isFinite(calories) && calories > 0 ? calories : base.caloriesPerServing,
+    proteinG: optNum(d.protein),
+    carbsG: optNum(d.carbs),
+    fatsG: optNum(d.fats),
+  };
+  if (d.unit === 'none') {
+    return {
+      ...shared,
+      servingDescription: d.servingDesc.trim() || base.servingDescription,
+      servingUnit: undefined,
+      servingQuantity: undefined,
+      packageQuantity: undefined,
+    };
+  }
+  const baseMeasure = measure(base);
+  const qty = optNum(d.servingQty);
+  const measureChanged = d.unit !== baseMeasure?.unit || qty !== baseMeasure?.servingQty;
+  return {
+    ...shared,
+    servingDescription:
+      measureChanged && qty !== undefined ? `${qty} ${d.unit}` : base.servingDescription,
+    servingUnit: d.unit,
+    servingQuantity: qty,
+    packageQuantity: optNum(d.packageQty),
+  };
+}
+
+/**
+ * Did the review change the item's nutritional identity? Measures are
+ * compared through measure() so a legacy '100 g' row normalizing into
+ * explicit unit fields doesn't read as a user edit.
+ */
 function itemEdited(edited: FoodItem, original: FoodItem): boolean {
+  const em = measure(edited);
+  const om = measure(original);
   return (
     edited.name !== original.name ||
     edited.caloriesPerServing !== original.caloriesPerServing ||
     edited.proteinG !== original.proteinG ||
     edited.carbsG !== original.carbsG ||
     edited.fatsG !== original.fatsG ||
-    edited.servingDescription !== original.servingDescription
+    edited.servingDescription !== original.servingDescription ||
+    em?.unit !== om?.unit ||
+    em?.servingQty !== om?.servingQty ||
+    em?.packageQty !== om?.packageQty
   );
 }
 
@@ -90,6 +148,7 @@ export function FoodConfirmList({
     setDrafts(
       foods.map((f) => {
         const mode = defaultMode(f.item);
+        const m = measure(f.item);
         return {
           name: f.item.name,
           calories: String(Math.round(f.item.caloriesPerServing)),
@@ -101,6 +160,9 @@ export function FoodConfirmList({
           carbs: f.item.carbsG !== undefined ? String(f.item.carbsG) : '',
           fats: f.item.fatsG !== undefined ? String(f.item.fatsG) : '',
           servingDesc: f.item.servingDescription ?? '',
+          unit: (m?.unit ?? 'none') as DraftUnit,
+          servingQty: m ? String(m.servingQty) : '',
+          packageQty: m?.packageQty !== undefined ? String(m.packageQty) : '',
           base: f,
         };
       }),
@@ -116,8 +178,40 @@ export function FoodConfirmList({
     setDrafts((prev) =>
       prev.map((d, i) => {
         if (i !== index || d.mode === mode) return d;
-        const servings = toServings(d.mode, Number(d.quantity), d.base.item) ?? d.base.servings;
-        return { ...d, mode, quantity: String(defaultValue(mode, servings, d.base.item)) };
+        const item = draftItem(d);
+        const servings = toServings(d.mode, Number(d.quantity), item) ?? d.base.servings;
+        return { ...d, mode, quantity: String(defaultValue(mode, servings, item)) };
+      }),
+    );
+  }
+
+  /**
+   * A measured-in / serving-size fix changes what "one serving" means:
+   * nutrition prefills rescale to the new basis (the user overrides
+   * with the label's numbers after), and the amount input resets to one
+   * serving of the new measure. Rescaling always derives from the BASE
+   * item's numbers — never the draft's — so typing "200" digit by digit
+   * ("2" → "20" → "200") can't compound rounding, and a bare g↔ml flip
+   * (basis quantity unchanged) leaves manual edits alone.
+   */
+  function patchMeasure(index: number, part: Pick<Partial<DraftFood>, 'unit' | 'servingQty'>) {
+    setDrafts((prev) =>
+      prev.map((d, i) => {
+        if (i !== index) return d;
+        const next: DraftFood = { ...d, ...part };
+        const newQty = optNum(next.servingQty);
+        const baseQty = measure(d.base.item)?.servingQty;
+        if (next.unit !== 'none' && newQty !== undefined && newQty !== baseQty) {
+          const scaled = rescaleNutrition(d.base.item, newQty);
+          next.calories = String(scaled.caloriesPerServing);
+          next.protein = scaled.proteinG !== undefined ? String(scaled.proteinG) : next.protein;
+          next.carbs = scaled.carbsG !== undefined ? String(scaled.carbsG) : next.carbs;
+          next.fats = scaled.fatsG !== undefined ? String(scaled.fatsG) : next.fats;
+        }
+        const after = draftItem(next);
+        next.mode = defaultMode(after);
+        next.quantity = String(defaultValue(next.mode, 1, after));
+        return next;
       }),
     );
   }
@@ -131,16 +225,10 @@ export function FoodConfirmList({
     for (const d of drafts) {
       const calories = Number(d.calories);
       if (!d.name.trim() || !Number.isFinite(calories) || calories <= 0) continue;
-      const servings = toServings(d.mode, Number(d.quantity), d.base.item) ?? d.base.servings;
-      const item: FoodItem = {
-        ...d.base.item,
-        name: d.name.trim(),
-        caloriesPerServing: calories,
-        proteinG: optNum(d.protein),
-        carbsG: optNum(d.carbs),
-        fatsG: optNum(d.fats),
-        servingDescription: d.servingDesc.trim() || d.base.item.servingDescription,
-      };
+      const item = draftItem(d);
+      const modes = quantityModes(item);
+      const mode = modes.some((o) => o.mode === d.mode) ? d.mode : modes[0].mode;
+      const servings = toServings(mode, Number(d.quantity), item) ?? d.base.servings;
       if (item.barcode && itemEdited(item, d.base.item)) onCorrection?.(item);
       reviewed.push({ item, servings, meal: d.meal });
     }
@@ -152,7 +240,8 @@ export function FoodConfirmList({
   return (
     <View style={styles.container}>
       {drafts.map((draft, i) => {
-        const options = quantityModes(draft.base.item);
+        const item = draftItem(draft);
+        const options = quantityModes(item);
         const option = options.find((o) => o.mode === draft.mode) ?? options[0];
         return (
           <Card key={`${draft.base.item.name}-${i}`} style={styles.card}>
@@ -177,7 +266,7 @@ export function FoodConfirmList({
             <View style={styles.numbersRow}>
               <View style={styles.numberField}>
                 <AppText variant="caption" color={colors.muted}>
-                  {caloriesLabel(draft.base.item)}
+                  {caloriesLabel(item)}
                 </AppText>
                 <TextInput
                   value={draft.calories}
@@ -202,7 +291,7 @@ export function FoodConfirmList({
                 ) : (
                   <View style={[styles.input, styles.fixedAmount]}>
                     <AppText variant="body" testID={`confirm-fixed-${i}`}>
-                      {draft.base.item.packageQuantity}
+                      {item.packageQuantity}
                     </AppText>
                   </View>
                 )}
@@ -218,10 +307,10 @@ export function FoodConfirmList({
                 testID={`confirm-mode-${i}`}
               />
             ) : (
-              draft.base.item.servingDescription &&
+              item.servingDescription &&
               draft.mode === 'servings' && (
                 <AppText variant="caption" color={colors.muted}>
-                  1 serving = {draft.base.item.servingDescription}
+                  1 serving = {item.servingDescription}
                 </AppText>
               )
             )}
@@ -239,6 +328,80 @@ export function FoodConfirmList({
 
             {draft.expanded && (
               <View style={styles.editPanel}>
+                <View style={styles.measureRow}>
+                  <AppText variant="caption" color={colors.muted}>
+                    measured in
+                  </AppText>
+                  {(
+                    [
+                      ['g', 'g'],
+                      ['ml', 'ml'],
+                      ['none', 'servings'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Pressable
+                      key={value}
+                      onPress={() => patchMeasure(i, { unit: value })}
+                      style={[styles.mealChip, draft.unit === value && styles.mealChipActive]}
+                      testID={`confirm-unit-${value}-${i}`}
+                    >
+                      <AppText
+                        variant="caption"
+                        color={draft.unit === value ? colors.text : colors.muted}
+                      >
+                        {label}
+                      </AppText>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {draft.unit === 'none' ? (
+                  <View style={styles.numberField}>
+                    <AppText variant="caption" color={colors.muted}>
+                      serving size
+                    </AppText>
+                    <TextInput
+                      value={draft.servingDesc}
+                      onChangeText={(v) => patch(i, { servingDesc: v })}
+                      placeholder="e.g. 1 bar, 1 plate"
+                      placeholderTextColor={colors.muted}
+                      style={styles.input}
+                      testID={`confirm-servingdesc-${i}`}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.numbersRow}>
+                    <View style={styles.numberField}>
+                      <AppText variant="caption" color={colors.muted}>
+                        1 serving = ({draft.unit})
+                      </AppText>
+                      <TextInput
+                        value={draft.servingQty}
+                        onChangeText={(v) => patchMeasure(i, { servingQty: v })}
+                        placeholder="e.g. 200"
+                        placeholderTextColor={colors.muted}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        testID={`confirm-servingqty-${i}`}
+                      />
+                    </View>
+                    <View style={styles.numberField}>
+                      <AppText variant="caption" color={colors.muted}>
+                        whole pack ({draft.unit})
+                      </AppText>
+                      <TextInput
+                        value={draft.packageQty}
+                        onChangeText={(v) => patch(i, { packageQty: v })}
+                        placeholder="Optional"
+                        placeholderTextColor={colors.muted}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        testID={`confirm-packageqty-${i}`}
+                      />
+                    </View>
+                  </View>
+                )}
+
                 <View style={styles.numbersRow}>
                   {(
                     [
@@ -261,21 +424,6 @@ export function FoodConfirmList({
                     </View>
                   ))}
                 </View>
-                {draft.base.item.servingUnit === undefined && (
-                  <View style={styles.numberField}>
-                    <AppText variant="caption" color={colors.muted}>
-                      serving size
-                    </AppText>
-                    <TextInput
-                      value={draft.servingDesc}
-                      onChangeText={(v) => patch(i, { servingDesc: v })}
-                      placeholder="e.g. 1 bar, 1 plate"
-                      placeholderTextColor={colors.muted}
-                      style={styles.input}
-                      testID={`confirm-servingdesc-${i}`}
-                    />
-                  </View>
-                )}
                 {!!draft.base.item.barcode && (
                   <AppText variant="caption" color={colors.muted}>
                     Your fixes are saved for this barcode — next scan uses them.
@@ -358,6 +506,11 @@ const styles = StyleSheet.create({
   },
   editPanel: {
     gap: spacing.sm,
+  },
+  measureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   mealRow: {
     flexDirection: 'row',
