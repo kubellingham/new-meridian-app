@@ -1,10 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Button, Card, Select } from '@/src/components/ui';
+import { getCharacter } from '@/src/content/characters';
+import { isClaudeConfigured } from '@/src/services/claude';
 import { MEAL_SLOTS } from '@/src/services/food-log';
-import type { ParsedFood } from '@/src/services/food-logging';
+import { getFoodFromLabel, type ParsedFood } from '@/src/services/food-logging';
+import { useUserStore } from '@/src/store/user-store';
 import {
   caloriesLabel,
   defaultMode,
@@ -56,6 +60,10 @@ type DraftFood = {
   unit: DraftUnit;
   servingQty: string;
   packageQty: string;
+  /** Sugar/fiber/sodium transcribed from a label photo (no UI fields). */
+  labelExtras?: Partial<FoodItem>;
+  /** The NS's one-liner (or error) from the last label read. */
+  labelNote?: string;
   base: ParsedFood;
 };
 
@@ -78,6 +86,7 @@ function draftItem(d: DraftFood): FoodItem {
   const calories = Number(d.calories);
   const shared = {
     ...base,
+    ...d.labelExtras,
     name: d.name.trim() || base.name,
     caloriesPerServing:
       Number.isFinite(calories) && calories > 0 ? calories : base.caloriesPerServing,
@@ -121,6 +130,9 @@ function itemEdited(edited: FoodItem, original: FoodItem): boolean {
     edited.proteinG !== original.proteinG ||
     edited.carbsG !== original.carbsG ||
     edited.fatsG !== original.fatsG ||
+    edited.sugarG !== original.sugarG ||
+    edited.fiberG !== original.fiberG ||
+    edited.sodiumMg !== original.sodiumMg ||
     edited.servingDescription !== original.servingDescription ||
     em?.unit !== om?.unit ||
     em?.servingQty !== om?.servingQty ||
@@ -143,6 +155,11 @@ export function FoodConfirmList({
   confirmLabel = 'Log it',
 }: FoodConfirmListProps) {
   const [drafts, setDrafts] = useState<DraftFood[]>([]);
+  /** Index currently having its label photo read, if any. */
+  const [readingLabel, setReadingLabel] = useState<number | null>(null);
+  const nsId = useUserStore((s) => s.nsId);
+  const userName = useUserStore((s) => s.name);
+  const nsName = nsId ? getCharacter(nsId).name : null;
 
   useEffect(() => {
     setDrafts(
@@ -218,6 +235,72 @@ export function FoodConfirmList({
 
   function removeAt(index: number) {
     setDrafts((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  /**
+   * The database is wrong and the truth is printed on the package: the
+   * NS reads a photo of the nutrition label and every field — measure
+   * included — takes the label's values. The user still gets the last
+   * word before logging, and the fix saves per-barcode like any edit.
+   */
+  async function readLabel(index: number) {
+    if (!nsId) return;
+    const picked = await ImagePicker.launchCameraAsync({
+      mediaTypes: 'images',
+      base64: true,
+      quality: 0.8, // label tables are small print — keep them legible
+      exif: false,
+    });
+    const asset = picked.canceled ? undefined : picked.assets[0];
+    if (!asset?.base64) return;
+    setReadingLabel(index);
+    const note = (labelNote: string) =>
+      setDrafts((prev) => prev.map((d, i) => (i === index ? { ...d, labelNote } : d)));
+    try {
+      const mediaType =
+        asset.mimeType === 'image/png' || asset.mimeType === 'image/webp'
+          ? asset.mimeType
+          : 'image/jpeg';
+      const read = await getFoodFromLabel(
+        nsId,
+        userName,
+        asset.base64,
+        mediaType,
+        drafts[index]?.name,
+      );
+      if (!read.item) {
+        note(read.reply || "Couldn't read that label — try a closer, sharper shot.");
+        return;
+      }
+      const it = read.item;
+      setDrafts((prev) =>
+        prev.map((d, i) => {
+          if (i !== index) return d;
+          const next: DraftFood = {
+            ...d,
+            calories: String(it.caloriesPerServing),
+            protein: it.proteinG !== undefined ? String(it.proteinG) : '',
+            carbs: it.carbsG !== undefined ? String(it.carbsG) : '',
+            fats: it.fatsG !== undefined ? String(it.fatsG) : '',
+            unit: (it.servingUnit ?? 'none') as DraftUnit,
+            servingQty: it.servingQuantity !== undefined ? String(it.servingQuantity) : '',
+            packageQty: it.packageQuantity !== undefined ? String(it.packageQuantity) : d.packageQty,
+            servingDesc: it.servingDescription ?? d.servingDesc,
+            labelExtras: { sugarG: it.sugarG, fiberG: it.fiberG, sodiumMg: it.sodiumMg },
+            labelNote: read.reply || 'Read it off the label.',
+          };
+          const after = draftItem(next);
+          next.mode = defaultMode(after);
+          next.quantity = String(defaultValue(next.mode, 1, after));
+          return next;
+        }),
+      );
+    } catch (e) {
+      console.error('Label read failed:', e);
+      note("Couldn't reach the label reader just now — you can still type the fixes.");
+    } finally {
+      setReadingLabel(null);
+    }
   }
 
   function handleConfirm() {
@@ -424,6 +507,26 @@ export function FoodConfirmList({
                     </View>
                   ))}
                 </View>
+                {!!draft.base.item.barcode && nsName && isClaudeConfigured() && (
+                  readingLabel === i ? (
+                    <AppText variant="caption" color={colors.muted} testID={`confirm-label-busy-${i}`}>
+                      {nsName} is reading the label…
+                    </AppText>
+                  ) : (
+                    <Button
+                      label={`Photograph the label — ${nsName} reads it`}
+                      variant="secondary"
+                      onPress={() => void readLabel(i)}
+                      disabled={readingLabel !== null}
+                      testID={`confirm-label-${i}`}
+                    />
+                  )
+                )}
+                {!!draft.labelNote && (
+                  <AppText variant="caption" color={colors.muted} testID={`confirm-labelnote-${i}`}>
+                    {draft.labelNote}
+                  </AppText>
+                )}
                 {!!draft.base.item.barcode && (
                   <AppText variant="caption" color={colors.muted}>
                     Your fixes are saved for this barcode — next scan uses them.

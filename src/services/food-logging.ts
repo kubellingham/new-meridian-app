@@ -22,7 +22,7 @@ import {
   SUGGEST_REPLIES_TOOL,
 } from '@/src/services/claude';
 import type { ChatMessage } from '@/src/store/chat-store';
-import type { FoodItem, MealSlot } from '@/src/types/user-data';
+import type { FoodItem, MealSlot, ServingUnit } from '@/src/types/user-data';
 
 /** One parsed food plus the NS's judgement of servings and meal slot. */
 export interface ParsedFood {
@@ -327,6 +327,157 @@ export async function getFoodFromPhoto(
     throw new Error('Empty response from model');
   }
   return result;
+}
+
+/**
+ * The label-reading tool — for a photo of a product's printed nutrition
+ * table, not a plate. Values are transcribed on the label's own basis;
+ * the parser converts to a FoodItem. The database is often wrong or
+ * incomplete for regional products (a reformulated soda at 28 kcal/100ml
+ * listed as 49); the label in the user's hand is the ground truth.
+ */
+const READ_LABEL_TOOL: Anthropic.Tool = {
+  name: 'read_label',
+  description:
+    "Transcribe the nutrition facts printed on the product label in the photo. Report ONLY values you can actually read — never estimate, never fill gaps from memory of similar products. Use the label's own basis (per 100 g/ml or per serving) and its own serving size. If the label is too blurry or cut off to read, don't call this tool.",
+  input_schema: {
+    type: 'object',
+    required: ['basis', 'calories'] as string[],
+    properties: {
+      productName: { type: 'string', description: 'Product name, if printed and readable.' },
+      basis: {
+        type: 'string',
+        enum: ['per-100', 'per-serving'],
+        description: 'Which basis the reported values use, exactly as the label states them.',
+      },
+      servingUnit: {
+        type: 'string',
+        enum: ['g', 'ml'],
+        description: 'The unit the label measures in (ml for drinks).',
+      },
+      servingQuantity: {
+        type: 'number',
+        description: 'The label\'s serve size in that unit, e.g. 200 for "Serve size: 200 ml".',
+      },
+      packageQuantity: {
+        type: 'number',
+        description: 'Net quantity of the whole package in the same unit, if printed.',
+      },
+      calories: { type: 'number', description: 'Energy in kcal, on the stated basis.' },
+      proteinG: { type: 'number', description: 'Protein g, on the stated basis.' },
+      carbsG: { type: 'number', description: 'Carbohydrate g, on the stated basis.' },
+      fatsG: { type: 'number', description: 'Total fat g, on the stated basis.' },
+      sugarG: { type: 'number', description: 'Total sugars g, on the stated basis.' },
+      fiberG: { type: 'number', description: 'Fiber g, on the stated basis.' },
+      sodiumMg: { type: 'number', description: 'Sodium mg, on the stated basis.' },
+    },
+  },
+};
+
+/**
+ * read_label tool input → a FoodItem on the app's model: per-serving
+ * values with the measure captured in the unit fields. A per-100 basis
+ * becomes the familiar "100 g / 100 ml" pseudo-serving; a per-serving
+ * basis uses the label's own serve size. Returns null when the call
+ * carries no usable calories. Exported for tests.
+ */
+export function parseLabelFromToolInput(
+  input: unknown,
+  fallbackName: string,
+): FoodItem | null {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const calories = num(raw.calories);
+  if (calories === undefined) return null;
+  const unit: ServingUnit | undefined =
+    raw.servingUnit === 'g' || raw.servingUnit === 'ml' ? raw.servingUnit : undefined;
+  const servingQty = num(raw.servingQuantity);
+  const perServing = raw.basis === 'per-serving' && servingQty !== undefined && unit !== undefined;
+  const name =
+    typeof raw.productName === 'string' && raw.productName.trim()
+      ? raw.productName.trim()
+      : fallbackName;
+  // A per-serving basis without a measurable serve size can't be placed
+  // on any unit scale — keep it an unstructured "1 serving" rather than
+  // mislabeling it per-100.
+  const shape =
+    raw.basis === 'per-serving'
+      ? perServing
+        ? {
+            servingDescription: `${servingQty} ${unit}`,
+            servingUnit: unit,
+            servingQuantity: servingQty,
+          }
+        : { servingDescription: '1 serving', servingUnit: undefined, servingQuantity: undefined }
+      : {
+          servingDescription: `100 ${unit ?? 'g'}`,
+          servingUnit: unit ?? ('g' as ServingUnit),
+          servingQuantity: 100,
+        };
+  return {
+    name,
+    ...shape,
+    packageQuantity: num(raw.packageQuantity),
+    caloriesPerServing: calories,
+    proteinG: num(raw.proteinG),
+    carbsG: num(raw.carbsG),
+    fatsG: num(raw.fatsG),
+    sugarG: num(raw.sugarG),
+    fiberG: num(raw.fiberG),
+    sodiumMg: num(raw.sodiumMg),
+  };
+}
+
+/** The directive attached to a nutrition-label photo. */
+const LABEL_DIRECTIVE = `[The user is showing you a photo of a packaged product's printed nutrition label{NAME} because the food database's numbers look wrong. Read the actual printed table and report it via the read_label tool — transcribe, don't estimate, and never fill gaps from memory of similar products. Use the label's own basis and serve size. Then reply with ONE short sentence in your own voice saying what you read. If the label is too blurry or cut off, say so plainly and call no tool.]`;
+
+/** What a label read returns: the transcribed item (or null) + the NS's line. */
+export interface LabelReadResult {
+  item: FoodItem | null;
+  reply: string;
+}
+
+/**
+ * The NS reads a product's printed nutrition label from a photo. The
+ * returned item carries NO barcode — the caller stamps it (the label
+ * photo doesn't prove which barcode it belongs to; the scan does).
+ */
+export async function getFoodFromLabel(
+  characterId: CharacterId,
+  userName: string,
+  base64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
+  productName?: string,
+): Promise<LabelReadResult> {
+  const directive = LABEL_DIRECTIVE.replace(
+    '{NAME}',
+    productName ? ` (the product is "${productName}")` : '',
+  );
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: buildSystem(characterId, userName),
+    tools: [READ_LABEL_TOOL],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: directive },
+        ],
+      },
+    ],
+  });
+  const reply = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  const toolUse = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'read_label',
+  );
+  const item = toolUse ? parseLabelFromToolInput(toolUse.input, productName ?? 'Scanned item') : null;
+  if (!item && !reply) throw new Error('Empty response from model');
+  return { item, reply };
 }
 
 /**

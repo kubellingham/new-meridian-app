@@ -17,6 +17,7 @@ import {
   buildRefineMessages,
   parseFollowUpsFromToolInput,
   parseFoodsFromToolInput,
+  parseLabelFromToolInput,
   type PhotoExchange,
 } from '../food-logging';
 
@@ -91,6 +92,60 @@ describe('parseFollowUpsFromToolInput', () => {
     expect(parseFollowUpsFromToolInput(undefined)).toEqual([]);
     expect(parseFollowUpsFromToolInput({})).toEqual([]);
     expect(parseFollowUpsFromToolInput({ questions: 'nope' })).toEqual([]);
+  });
+});
+
+describe('parseLabelFromToolInput', () => {
+  // The tester's bottle, as the label actually reads.
+  it('maps a per-100 label onto the 100-unit pseudo-serving', () => {
+    const item = parseLabelFromToolInput(
+      {
+        basis: 'per-100',
+        servingUnit: 'ml',
+        servingQuantity: 200,
+        packageQuantity: 1250,
+        calories: 28,
+        proteinG: 0,
+        carbsG: 6.9,
+        sugarG: 6.8,
+        fatsG: 0,
+        sodiumMg: 8,
+      },
+      'Mountain Dew',
+    )!;
+    // Values are per-100ml, so the item's basis must say so — the
+    // label's 200 ml serve size must NOT be attached to per-100 numbers.
+    expect(item.servingDescription).toBe('100 ml');
+    expect(item.servingQuantity).toBe(100);
+    expect(item.servingUnit).toBe('ml');
+    expect(item.caloriesPerServing).toBe(28);
+    expect(item.carbsG).toBe(6.9);
+    expect(item.sodiumMg).toBe(8);
+    expect(item.packageQuantity).toBe(1250);
+    expect(item.name).toBe('Mountain Dew');
+    expect(item.barcode).toBeUndefined(); // caller stamps it
+  });
+
+  it('uses the label serve size for a per-serving basis', () => {
+    const item = parseLabelFromToolInput(
+      { basis: 'per-serving', servingUnit: 'ml', servingQuantity: 200, calories: 56 },
+      'Dew',
+    )!;
+    expect(item.servingDescription).toBe('200 ml');
+    expect(item.servingQuantity).toBe(200);
+    expect(item.caloriesPerServing).toBe(56);
+  });
+
+  it('keeps an unmeasurable per-serving basis unstructured', () => {
+    const item = parseLabelFromToolInput({ basis: 'per-serving', calories: 150 }, 'Bar')!;
+    expect(item.servingDescription).toBe('1 serving');
+    expect(item.servingUnit).toBeUndefined();
+    expect(item.servingQuantity).toBeUndefined();
+  });
+
+  it('rejects a read without calories', () => {
+    expect(parseLabelFromToolInput({ basis: 'per-100' }, 'X')).toBeNull();
+    expect(parseLabelFromToolInput(undefined, 'X')).toBeNull();
   });
 });
 
