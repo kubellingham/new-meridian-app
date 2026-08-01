@@ -42,6 +42,8 @@ describe('api/claude proxy', () => {
   beforeEach(() => {
     process.env.MERIDIAN_APP_TOKEN = 'app-token';
     process.env.ANTHROPIC_API_KEY = 'real-key';
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_MODEL;
     global.fetch = jest.fn().mockResolvedValue({
       status: 200,
       json: async () => ({
@@ -145,5 +147,54 @@ describe('api/claude proxy', () => {
     const res = mockRes();
     await handler(req(), res);
     expect(res.statusCode).toBe(502);
+  });
+
+  describe('OpenRouter upstream (OPENROUTER_API_KEY set)', () => {
+    beforeEach(() => {
+      process.env.OPENROUTER_API_KEY = 'or-key';
+    });
+
+    it('routes to the Anthropic-compatible endpoint with a Bearer key and slug model', async () => {
+      const res = mockRes();
+      await handler(req(), res);
+      expect(res.statusCode).toBe(200);
+      const [url, init] = global.fetch.mock.calls[0];
+      expect(url).toBe('https://openrouter.ai/api/v1/messages');
+      expect(init.headers.authorization).toBe('Bearer or-key');
+      expect(init.headers['x-api-key']).toBeUndefined();
+      const sent = JSON.parse(init.body);
+      // The app's Anthropic model id becomes OpenRouter's slug; the rest
+      // of the request rides through untouched.
+      expect(sent.model).toBe('anthropic/claude-sonnet-4.6');
+      expect(sent.system).toBe('You are Nneka.');
+      expect(sent.messages).toEqual([{ role: 'user', content: 'I had jollof rice' }]);
+    });
+
+    it('honors an OPENROUTER_MODEL override', async () => {
+      process.env.OPENROUTER_MODEL = 'anthropic/claude-sonnet-4';
+      const res = mockRes();
+      await handler(req(), res);
+      const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(sent.model).toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('wins over an Anthropic key when both are set', async () => {
+      const res = mockRes();
+      await handler(req(), res);
+      expect(global.fetch.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/messages');
+    });
+
+    it('works with only the OpenRouter key configured', async () => {
+      delete process.env.ANTHROPIC_API_KEY;
+      const res = mockRes();
+      await handler(req(), res);
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('still rejects models the app never sends', async () => {
+      const res = mockRes();
+      await handler(req({ body: { model: 'gpt-4o', max_tokens: 100, messages: [] } }), res);
+      expect(res.statusCode).toBe(400);
+    });
   });
 });
