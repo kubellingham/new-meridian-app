@@ -681,12 +681,16 @@ function trainerFramingBeat(goal: PrimaryGoal): OnboardingBeat {
 /** Trainer roster through the finish — identical for every goal. */
 const CLOSING_BEATS: OnboardingBeat[] = [
   // — PHASE 3: Trainer selection —
+  // The house-standard note keeps Kael's no-favourite rule intact: the
+  // suggestion is explicitly Meridian's default, not his ranking, and
+  // choosing anyone else stays a first-class move.
   {
     kind: 'roster',
     speaker: 'kael',
     role: 'trainer',
     field: 'trainer',
-    prompt: "Tap whoever you'd like to meet. They'll introduce themselves.",
+    prompt:
+      "Tap whoever you'd like to meet — they'll introduce themselves. One house note: Cassidy is Meridian's standard coach, the default most people start on. That's the house's pick, not mine — I don't rank coaches. If choosing feels like homework, start with her; you can meet the others anytime.",
   },
 
   // — PHASE 4: NS selection —

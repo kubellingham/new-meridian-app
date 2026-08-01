@@ -17,6 +17,7 @@ import {
   getCharacter,
   getCharactersByRole,
   getTrainersForGoal,
+  MERIDIAN_STANDARD_TRAINER,
   type CharacterId,
 } from '@/src/content/characters';
 import {
@@ -27,6 +28,7 @@ import {
   type OnboardingBeat,
 } from '@/src/content/onboarding/flows';
 import { computeTargets } from '@/src/services/nutrition-targets';
+import { cmFromFtIn, ftInFromCm, kgFromLb, lbFromKg } from '@/src/services/units';
 import { useOnboardingStore } from '@/src/store/onboarding-store';
 import { hueFor } from '@/src/theme/character-hues';
 import { useUserDataStore } from '@/src/store/user-data-store';
@@ -112,6 +114,10 @@ function OnboardingFlow() {
   // Bumped per field when input is rejected — drives the shake animation.
   const [dateShakes, setDateShakes] = useState({ day: 0, month: 0, year: 0 });
   const [numberValues, setNumberValues] = useState<Record<string, string>>({});
+  // Numbers-beat unit system: metric (cm·kg) or imperial (ft/in·lb).
+  // Display-side only — everything committed to the stores is metric.
+  const [unitSystem, setUnitSystem] = useState<'metric' | 'imperial'>('metric');
+  const [ftIn, setFtIn] = useState({ ft: '', in: '' });
   const [freeText, setFreeText] = useState('');
   const [showFreeText, setShowFreeText] = useState(false);
   const [metCharacter, setMetCharacter] = useState<CharacterId | null>(null);
@@ -169,6 +175,7 @@ function OnboardingFlow() {
     setDateParts({ day: '', month: '', year: '' });
     setDateShakes({ day: 0, month: 0, year: 0 });
     setNumberValues({});
+    setFtIn({ ft: '', in: '' });
     setFreeText('');
     setShowFreeText(false);
     setMetCharacter(null);
@@ -244,13 +251,67 @@ function OnboardingFlow() {
     router.replace('/(tabs)');
   }
 
+  /**
+   * The metric value a numbers field currently holds, whatever unit the
+   * user is typing in — cm/kg pass through, ft·in and lb convert.
+   * undefined = empty or not a usable number yet.
+   */
+  function metricNumber(key: string): number | undefined {
+    if (key === 'height' && unitSystem === 'imperial') {
+      if (ftIn.ft.trim() === '') return undefined;
+      const ft = Number(ftIn.ft);
+      const inches = ftIn.in.trim() === '' ? 0 : Number(ftIn.in);
+      if (!Number.isFinite(ft) || ft <= 0 || !Number.isFinite(inches) || inches < 0) {
+        return undefined;
+      }
+      return cmFromFtIn(ft, inches);
+    }
+    const raw = (numberValues[key] ?? '').trim();
+    if (raw === '') return undefined;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return key !== 'height' && unitSystem === 'imperial' ? kgFromLb(n) : n;
+  }
+
+  /** Unit flip — converts anything already typed so nothing is retyped. */
+  function switchUnits(next: 'metric' | 'imperial') {
+    if (next === unitSystem) return;
+    const conv = (raw: string | undefined, fn: (n: number) => number): string | undefined => {
+      const n = Number((raw ?? '').trim());
+      return Number.isFinite(n) && n > 0 ? String(fn(n)) : raw;
+    };
+    if (next === 'imperial') {
+      const cm = Number((numberValues.height ?? '').trim());
+      if (Number.isFinite(cm) && cm > 0) {
+        const { ft, inches } = ftInFromCm(cm);
+        setFtIn({ ft: String(ft), in: String(inches) });
+      }
+      setNumberValues((n) => ({
+        ...n,
+        startingWeight: conv(n.startingWeight, lbFromKg) ?? '',
+        goalWeight: conv(n.goalWeight, lbFromKg) ?? '',
+      }));
+    } else {
+      const ft = Number(ftIn.ft);
+      const inches = ftIn.in.trim() === '' ? 0 : Number(ftIn.in);
+      setNumberValues((n) => ({
+        ...n,
+        height:
+          Number.isFinite(ft) && ft > 0 && Number.isFinite(inches) && inches >= 0
+            ? String(cmFromFtIn(ft, inches))
+            : (n.height ?? ''),
+        startingWeight: conv(n.startingWeight, kgFromLb) ?? '',
+        goalWeight: conv(n.goalWeight, kgFromLb) ?? '',
+      }));
+    }
+    setUnitSystem(next);
+  }
+
   /** A gentle plausibility nudge on the weight fields, per goal. Null = fine. */
   function weightNudge(): string | null {
-    const current = Number(numberValues.startingWeight);
-    const target = Number(numberValues.goalWeight);
-    const bothSet =
-      Number.isFinite(current) && current > 0 && Number.isFinite(target) && target > 0;
-    if (!bothSet) return null;
+    const current = metricNumber('startingWeight');
+    const target = metricNumber('goalWeight');
+    if (current === undefined || target === undefined) return null;
     if (goal === 'weight-loss' && target >= current) {
       return 'For weight loss your goal is usually below your current weight — worth a double-check.';
     }
@@ -371,44 +432,116 @@ function OnboardingFlow() {
 
       case 'numbers': {
         const b = beat;
-        const allFilled = b.fields.every((f) => {
-          const raw = (numberValues[f.key] ?? '').trim();
-          if (f.optional && raw === '') return true;
-          const n = Number(raw);
-          return Number.isFinite(n) && n > 0;
-        });
+        const imperial = unitSystem === 'imperial';
+        const emptyRaw = (key: string) =>
+          key === 'height' && imperial
+            ? ftIn.ft.trim() === '' && ftIn.in.trim() === ''
+            : (numberValues[key] ?? '').trim() === '';
+        const allFilled = b.fields.every(
+          (f) => (f.optional && emptyRaw(f.key)) || metricNumber(f.key) !== undefined,
+        );
         const nudge = weightNudge();
         return (
           <>
             <SpokenLines speaker={b.speaker} lines={[b.prompt]} ctx={ctx} />
-            {b.fields.map((f) => (
-              <View key={f.key} style={styles.numberRow}>
-                <AppText variant="label" style={styles.numberLabel}>
-                  {f.label}
-                </AppText>
-                <View style={styles.numberInputWrap}>
-                  <TextInput
-                    value={numberValues[f.key] ?? ''}
-                    onChangeText={(v) => setNumberValues((n) => ({ ...n, [f.key]: v }))}
-                    placeholder={f.placeholder}
-                    placeholderTextColor={colors.muted}
-                    keyboardType="numeric"
-                    style={styles.numberInput}
-                    testID={`ob-num-${f.key}`}
-                  />
-                  <AppText variant="caption" color={colors.muted}>
-                    {f.unit}
+            {/* Type in whatever you actually know your body in. */}
+            <View style={styles.unitRow}>
+              {(
+                [
+                  ['metric', 'cm · kg'],
+                  ['imperial', 'ft · lb'],
+                ] as const
+              ).map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  onPress={() => switchUnits(value)}
+                  accessibilityRole="button"
+                  style={[styles.unitChip, unitSystem === value && styles.unitChipActive]}
+                  testID={`ob-units-${value}`}
+                >
+                  <AppText
+                    variant="caption"
+                    color={unitSystem === value ? colors.text : colors.muted}
+                  >
+                    {label}
                   </AppText>
+                </Pressable>
+              ))}
+            </View>
+            {b.fields.map((f) =>
+              f.key === 'height' && imperial ? (
+                <View key={f.key} style={styles.numberRow}>
+                  <AppText variant="label" style={styles.numberLabel}>
+                    {f.label}
+                  </AppText>
+                  <View style={styles.numberInputWrap}>
+                    <TextInput
+                      value={ftIn.ft}
+                      onChangeText={(v) => setFtIn((p) => ({ ...p, ft: v }))}
+                      placeholder="5"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="numeric"
+                      style={styles.numberInput}
+                      testID="ob-num-height-ft"
+                    />
+                    <AppText variant="caption" color={colors.muted}>
+                      ft
+                    </AppText>
+                    <TextInput
+                      value={ftIn.in}
+                      onChangeText={(v) => setFtIn((p) => ({ ...p, in: v }))}
+                      placeholder="9"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="numeric"
+                      style={styles.numberInput}
+                      testID="ob-num-height-in"
+                    />
+                    <AppText variant="caption" color={colors.muted}>
+                      in
+                    </AppText>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ) : (
+                <View key={f.key} style={styles.numberRow}>
+                  <AppText variant="label" style={styles.numberLabel}>
+                    {f.label}
+                  </AppText>
+                  <View style={styles.numberInputWrap}>
+                    <TextInput
+                      value={numberValues[f.key] ?? ''}
+                      onChangeText={(v) => setNumberValues((n) => ({ ...n, [f.key]: v }))}
+                      placeholder={
+                        imperial && f.unit === 'kg'
+                          ? String(Math.round(lbFromKg(Number(f.placeholder)) || 0) || '')
+                          : f.placeholder
+                      }
+                      placeholderTextColor={colors.muted}
+                      keyboardType="numeric"
+                      style={styles.numberInput}
+                      testID={`ob-num-${f.key}`}
+                    />
+                    <AppText variant="caption" color={colors.muted}>
+                      {imperial && f.unit === 'kg' ? 'lb' : f.unit}
+                    </AppText>
+                  </View>
+                </View>
+              ),
+            )}
             {nudge && (
               <AppText variant="caption" color={colors.warning} style={styles.hint}>
                 {nudge}
               </AppText>
             )}
             {continueButton(
-              () => commitAnswers({ ...numberValues }, b.ack.map((l) => interpolate(l, ctx))),
+              () => {
+                // Whatever was typed, the stores get metric.
+                const committed: Answers = {};
+                for (const f of b.fields) {
+                  const v = metricNumber(f.key);
+                  committed[f.key] = v === undefined ? '' : String(v);
+                }
+                commitAnswers(committed, b.ack.map((l) => interpolate(l, ctx)));
+              },
               'Continue',
               !allFilled,
             )}
@@ -509,19 +642,31 @@ function OnboardingFlow() {
       );
     }
 
-    // Roster grid — trainers are filtered to the chosen goal's roster.
+    // Roster grid — trainers are filtered to the chosen goal's roster,
+    // with Meridian's standard coach listed first and badged so nobody
+    // has to treat the choice as an exam.
     const roster = b.role === 'trainer' ? getTrainersForGoal(goal) : getCharactersByRole(b.role);
+    const isStandard = (id: CharacterId) =>
+      b.role === 'trainer' && id === MERIDIAN_STANDARD_TRAINER;
+    const ordered = [...roster].sort(
+      (a, z) => Number(isStandard(z.id)) - Number(isStandard(a.id)),
+    );
     return (
       <>
         <SpokenLines speaker={b.speaker} lines={[b.prompt]} ctx={ctx} />
-        {roster.map((c) => (
+        {ordered.map((c) => (
           <Pressable
             key={c.id}
             onPress={() => setMetCharacter(c.id)}
             accessibilityRole="button"
             testID={`ob-roster-${c.id}`}
           >
-            <Card style={styles.rosterCard}>
+            <Card style={[styles.rosterCard, isStandard(c.id) && styles.rosterSuggested]}>
+              {isStandard(c.id) && (
+                <AppText variant="overline" color={colors.primary} testID="ob-roster-standard">
+                  Meridian’s standard — most start here
+                </AppText>
+              )}
               <AppText variant="subtitle">{c.fullName ?? c.name}</AppText>
               <AppText variant="caption">
                 {c.origin} · {c.personalityWords}
@@ -780,6 +925,23 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.sm,
   },
+  unitRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  unitChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  unitChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.panel,
+  },
   numberLabel: {
     flex: 1,
   },
@@ -808,6 +970,10 @@ const styles = StyleSheet.create({
   disclaimer: {
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  rosterSuggested: {
+    borderColor: colors.primary,
+    borderWidth: 1,
   },
   rosterCard: {
     marginTop: spacing.sm,

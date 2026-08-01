@@ -97,3 +97,12 @@ export function getTrainersForGoal(goal: TrainerGoal): Character[] {
 
 /** The eight nutrition specialists, by cultural tradition. */
 export const NUTRITION_SPECIALISTS = getCharactersByRole('nutrition-specialist');
+
+/**
+ * Meridian's standard weight-loss coach — the house default suggested
+ * to new users so picking a trainer never feels like an exam. This is
+ * a PRODUCT decision, deliberately not Kael's: his "no favourite" rule
+ * stands, and every surface that mentions the standard must frame it
+ * as the house's pick, never his ranking.
+ */
+export const MERIDIAN_STANDARD_TRAINER: CharacterId = 'cassidy';

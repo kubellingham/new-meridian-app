@@ -5,6 +5,7 @@ import { AppText, Button, Card } from '@/src/components/ui';
 import {
   getCharacter,
   getTrainersForGoal,
+  MERIDIAN_STANDARD_TRAINER,
   type CharacterId,
 } from '@/src/content/characters';
 import { SPECIALIST_ONBOARDING } from '@/src/content/onboarding/flows';
@@ -109,14 +110,29 @@ export function TrainerRepickCard({ retiredTrainerId, userName, onCommit }: Prop
           Meet whoever you like. The right one is whoever feels right to you.
         </AppText>
       </Card>
-      {roster.map((c) => (
+      {[...roster]
+        .sort(
+          (a, z) =>
+            Number(z.id === MERIDIAN_STANDARD_TRAINER) - Number(a.id === MERIDIAN_STANDARD_TRAINER),
+        )
+        .map((c) => (
         <Pressable
           key={c.id}
           onPress={() => setMeeting(c.id)}
           accessibilityRole="button"
           testID={`repick-roster-${c.id}`}
         >
-          <Card style={styles.rosterCard}>
+          <Card
+            style={[
+              styles.rosterCard,
+              c.id === MERIDIAN_STANDARD_TRAINER && styles.rosterSuggested,
+            ]}
+          >
+            {c.id === MERIDIAN_STANDARD_TRAINER && (
+              <AppText variant="overline" color={colors.primary}>
+                Meridian’s standard — most start here
+              </AppText>
+            )}
             <AppText variant="subtitle">{c.fullName ?? c.name}</AppText>
             <AppText variant="caption">
               {c.origin} · {c.personalityWords}
@@ -147,6 +163,10 @@ const styles = StyleSheet.create({
   },
   rosterCard: {
     marginTop: spacing.md,
+  },
+  rosterSuggested: {
+    borderColor: colors.primary,
+    borderWidth: 1,
   },
   philosophy: {
     marginTop: spacing.xs,
