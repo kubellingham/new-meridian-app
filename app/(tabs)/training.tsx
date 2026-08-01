@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet } from 'react-native';
 
 import { AppText, Button, Card, KEYBOARD_BEHAVIOR, Screen } from '@/src/components/ui';
@@ -41,6 +41,24 @@ export default function TrainingScreen() {
   const emitEvent = useUserDataStore((s) => s.emitEvent);
 
   const [generating, setGenerating] = useState(false);
+  // When an auto-kicked generation fails we say so inline — an Alert
+  // popping the moment you open the tab would be rude.
+  const [autoFailNote, setAutoFailNote] = useState<string | null>(null);
+
+  // Walking into the hub should show today's session — or at least show
+  // it being built — without a tap. One automatic attempt per mount;
+  // after a failure the manual button is the retry.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || generating) return;
+    if (!trainerId || !isClaudeConfigured()) return;
+    const script = getIntakeScript(trainerId);
+    if (script !== undefined && intakeCompletedBy !== trainerId) return; // intake first
+    const state = deriveWorkoutState({ currentPlan, currentSession, recentSessions }, false);
+    if (state.kind !== 'no-plan') return;
+    autoTried.current = true;
+    void handleGenerate(true);
+  });
 
   const trainer = trainerId ? getCharacter(trainerId) : null;
 
@@ -91,15 +109,18 @@ export default function TrainingScreen() {
    * emits the workout-plan-created event so Kael sees it in his next
    * pass.
    */
-  async function handleGenerate() {
+  async function handleGenerate(auto = false) {
     if (!trainerId || !isClaudeConfigured()) {
-      Alert.alert(
-        `${trainerName} offline`,
-        "Meridian's service is unreachable right now. Check your connection and try again.",
-      );
+      if (!auto) {
+        Alert.alert(
+          `${trainerName} offline`,
+          "Meridian's service is unreachable right now. Check your connection and try again.",
+        );
+      }
       return;
     }
     setGenerating(true);
+    setAutoFailNote(null);
     try {
       const plan = await generateWorkoutPlan(trainerId, name);
       setCurrentPlan(plan);
@@ -117,10 +138,16 @@ export default function TrainingScreen() {
       });
     } catch (error) {
       console.error('Plan generation failed:', error);
-      Alert.alert(
-        `${trainerName} couldn't put a plan together`,
-        'Something went wrong reaching the trainer. Try again in a moment.',
-      );
+      if (auto) {
+        setAutoFailNote(
+          `${trainerName} couldn't put today together just now — tap to try again.`,
+        );
+      } else {
+        Alert.alert(
+          `${trainerName} couldn't put a plan together`,
+          'Something went wrong reaching the trainer. Try again in a moment.',
+        );
+      }
     } finally {
       setGenerating(false);
     }
@@ -189,10 +216,15 @@ export default function TrainingScreen() {
         <WorkoutStateCard
           state={cardState}
           trainerName={trainerName}
-          onGenerate={handleGenerate}
+          onGenerate={() => void handleGenerate()}
           onStart={handleStart}
           onResume={handleResume}
         />
+        {autoFailNote && cardState.kind === 'no-plan' && (
+          <AppText variant="caption" color={colors.warning} style={styles.autoFail} testID="training-autofail">
+            {autoFailNote}
+          </AppText>
+        )}
 
         <Button
           label={`Talk to ${trainerName}`}
@@ -242,6 +274,9 @@ const styles = StyleSheet.create({
   },
   talkButton: {
     marginTop: spacing.md,
+  },
+  autoFail: {
+    marginTop: spacing.xs,
   },
   historyButton: {
     marginTop: spacing.xs,

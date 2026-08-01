@@ -54,7 +54,8 @@ This document is the full, authoritative record of the Meridian build — writte
 **Onboarding** (`app/onboarding.tsx` + `src/content/onboarding/flows.ts`)
 - The full weight-loss script (Meridian_Weight_Loss_Onboarding_Script_v1) as a text-forward flow: Kael collects name/birthday/gender/goal/activity, Sera collects why-now/feeling/coaching-style, trainer + NS roster meets with scripted intros and commits, team wrap, honest local-only close.
 - **Weight-loss-first (the pivot)**: every new user starts on weight loss — the goal beat keeps all three cards but only "Lose weight" is selectable (the others render disabled with an honest "paused" note). The muscle/general branches are **dormant, not deleted**: per-goal beats, rosters, targets, and trainer content all remain and keep working for existing users on those goals. Onboarding progress persists beat-by-beat (`meridian-onboarding` store), so backgrounding/process death resumes mid-flow.
-- Added beyond the script: a numbers beat (height/current/goal weight — the script never collected them), per-goal plausibility nudges, optional goal weight for general fitness, a "Something else" free-text feeling with a Sera ack, progress bar + back navigation, an AI-fallibility/medical disclaimer on the finish screen.
+- Added beyond the script: a numbers beat (height/current/goal weight — the script never collected them) with a **metric/imperial toggle** (cm·kg ↔ ft/in·lb, typed values convert on flip, stores stay metric via `src/services/units.ts`), per-goal plausibility nudges, optional goal weight for general fitness, a "Something else" free-text feeling with a Sera ack, progress bar + back navigation, an AI-fallibility/medical disclaimer on the finish screen.
+- **Meridian's standard coach** (`MERIDIAN_STANDARD_TRAINER` = Cassidy): the trainer roster suggests her first with a badged card and a Kael house note explicitly framed as the house's default, not his ranking — picking anyone else stays first-class. Same badge on the retirement re-pick surface.
 - Emotional answers persist into `sessionFeedback.emotionalCheckIns` so Sera genuinely carries the "why" forward. Targets compute at finish; the user lands on a real Home.
 
 **Home** (`app/(tabs)/index.tsx`)
@@ -63,6 +64,7 @@ This document is the full, authoritative record of the Meridian build — writte
 
 **Training** (`app/(tabs)/training.tsx`, `app/trainer.tsx`, `app/workout/[sessionId].tsx`, `app/history.tsx`)
 - First-visit **trainer mini-intake** (equipment / days-per-week / experience), trainer-voiced, tappable — gates generation and filters the exercise database.
+- **Today's session auto-generates**: entering the hub (intake done, no plan or session yet, API reachable) kicks off generation with no tap — the loading card shows while the trainer builds; an auto-attempt failure falls back to the manual button with an inline note (one auto attempt per mount, never an alert).
 - Daily plan generation in the trainer's voice (intent line + per-exercise cues), rest days as first-class. **Curated exercise database** (~90 movements: strength/conditioning/mobility/warm-up/cool-down, tagged by equipment/muscles/level, each with a fallback cue); generation is constrained to it.
 - Workout runner: set-by-set logging with natural inputs, un-log, swipe-delete, non-mandatory sets, rest timer, session feeling + note. History browsing screen. A per-exercise progression digest feeds the next generation. Plan-created and workout-completed events flow to Kael.
 
